@@ -7,11 +7,12 @@ asserted first, so a wrong base image fails loudly instead of building junk.
 The OS file is the 256 KB type-0x63 file at block 17 of the stock OS disk.
 """
 import os
+import struct
 import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.17"
+VERSION = "0.18"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -160,6 +161,49 @@ PATCHES = [
 ]
 
 
+# High code (0.18 experiment): CPU RAM 0x40000-0x4FFFF is never written by the OS (emulator memuse map,
+# no segment 0x4xxx in the code; 0x50000 is its disk buffer). The OS file grows past 256 KB so the boot
+# loader (hopefully) loads the extra blocks there too. For now: a test pattern, read back over SysEx.
+HI_SEG = 0x4000
+HI_SPAN = int(os.environ.get("HI_SPAN", "0x10000"), 0)
+
+
+def hi_blob():
+    out = bytearray()
+    for k in range(HI_SPAN // 1024):
+        blk = bytearray((i * 7 + k) & 0xFF for i in range(1024))
+        blk[:16] = f"ROSETTA HI {k:3d}".encode().ljust(16)
+        out += blk
+    return bytes(out)
+
+
+def extend_os(disk, blob):
+    """Append blob to the OS file: size field + FAT chain past block 16 + OS_SIZE / 1024."""
+    assert len(blob) % 1024 == 0
+    ent = None
+    for i in range(512):
+        e = 0x1400 + 24 * i
+        if disk[e + 16] == 0x63 and struct.unpack_from("<H", disk, e + 20)[0] == OS_BLOCK:
+            ent = e
+    assert ent is not None, "no OS entry"
+    size = disk[ent + 17] | disk[ent + 18] << 8 | disk[ent + 19] << 16
+    assert size == OS_SIZE, hex(size)
+    last = OS_BLOCK + OS_SIZE // 1024 - 1
+    assert struct.unpack_from("<H", disk, 0x600 + 2 * last)[0] == 0xC000
+    nb = len(blob) // 1024
+    for k in range(nb):
+        b = last + 1 + k
+        assert struct.unpack_from("<H", disk, 0x600 + 2 * b)[0] == 0, f"block {b} in use"
+    for k in range(nb + 1):
+        b = last + k
+        struct.pack_into("<H", disk, 0x600 + 2 * b, b + 1 if k < nb else 0xC000)
+    lo = (last + 1) * 1024
+    disk[lo:lo + len(blob)] = blob
+    new = size + len(blob)
+    disk[ent + 17:ent + 20] = bytes([new & 0xFF, new >> 8 & 0xFF, new >> 16])
+    print(f"  OS file {size:#x} -> {new:#x}: {len(blob)} B at blocks {last + 1}-{last + nb} (loads at {HI_SEG:04x}:0000?)")
+
+
 def main():
     disk_in, template, prefix = sys.argv[1:4]
     disk = bytearray(open(disk_in, "rb").read())
@@ -180,6 +224,8 @@ def main():
     osb[lo:lo + len(menu)] = menu
     print(f"  {lo:#07x}  menu blob {len(menu)} B (MENU_SEG {MENU_SEG:04x}:0000)")
     disk[os_off:os_off + OS_SIZE] = osb
+    if HI_SPAN:
+        extend_os(disk, hi_blob())
     if os.environ.get("TESTKIT", "1") == "1":       # CLICK / NOISE BURST / BEEP 1K on the boot floppy
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import testkit
