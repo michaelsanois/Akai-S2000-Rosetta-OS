@@ -570,6 +570,30 @@ def main():
                 if m1 in seen:
                     break
                 seen.add(m1)
+    elif cmd == "groupwalk":
+        # groupwalk: the edit modes in full. Per mode: GROUP+ (r4c0) jumps = group starts, then PAGE+ (r0c0)
+        # through every page (up to 200) -> docs/pagewalk_edit.txt (menu M2 page/group map)
+        e = ui.emu
+        mp = lambda: tuple(e.mu.mem_read(0x762B, 2))
+        paths = [([(0, 1)], "EDIT PROGRAM"), ([(4, 1), (0, 1)], "EDIT MULTI"), ([(7, 1), (0, 1)], "EDIT SAMPLE")]
+        for path, nm in paths:
+            ui.restore(snap)
+            for k in path:
+                ui.press(k)
+            s0 = ui.snapshot()
+            m0 = mp()
+            print(f"===== {nm}: {m0} {ui.screen()}")
+            for label, key, limit in (("GROUP+", (4, 0), 60), ("PAGE+", (0, 0), 200)):
+                ui.restore(s0)
+                seen = {m0}
+                print(f"  -- {label}")
+                for _ in range(limit):
+                    ui.press(key, hold=40, after=120)
+                    m1 = mp()
+                    print(f"      {m1[0]:2d}/{m1[1]:3d} {ui.screen()}", flush=True)
+                    if m1 in seen:
+                        break
+                    seen.add(m1)
     elif cmd == "isrcheck":
         # do any interrupt handlers write the voice chip (0x80-0x8C)? A select+data pair split by an ISR
         # write would corrupt the main loop's (and Rosetta's LFO) chip writes. Notes + chorus for N ticks.

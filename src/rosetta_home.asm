@@ -24,7 +24,19 @@ key_hook:
         je .mode
         cmp ah, 0x40
         jne .pass
-        cmp byte [MODE], 0            ; soft key
+        cmp byte [MODE], MODE_PROG    ; soft key inside an EDIT PROGRAM group
+        jne .s0
+        cmp byte [cs:grp], 0
+        je .pass
+        pusha
+        push es
+        and al, 0x1F
+        call pg_key
+        pop es
+        popa
+        jc .eat
+        jmp .pass
+.s0:    cmp byte [MODE], 0
         jne .fx
         cmp byte [PAGE], 0
         jne .pass
@@ -40,15 +52,46 @@ key_hook:
         jne .pass
         cmp byte [PAGE], FXPAGE
         jne .pass
-        pusha
+        cmp byte [cs:ctx], CTX_PROG
+        jne .fxk
+        cmp al, 0x40                  ; menu: left soft key = out (same as home)
+        jne .pmk
+        mov al, 0xC0
+        jmp .mode
+.pmk:   pusha
+        push es
+        and al, 0x1F
+        call pm_key
+        pop es
+        popa
+        jmp .eat
+.fxk:   pusha
         push es
         and al, 0x1F
         call fx_key
         pop es
         popa
         jmp .eat
-.mode:  cmp al, 0xC0                  ; home key
+.mode:  cmp al, KEY_EDIT              ; EDIT on the menu = out (stock would flip 6 -> 7)
+        jne .m1
+        cmp byte [cs:ctx], CTX_PROG
         jne .pass
+        cmp byte [MODE], MODE_FX
+        jne .pass
+        mov al, 0xC0
+.m1:    cmp al, 0xC0                  ; home key
+        jne .pass
+        cmp byte [MODE], MODE_PROG    ; in a group: back to the menu
+        jne .m2
+        cmp byte [cs:grp], 0
+        je .m2
+        pusha
+        push es
+        call pm_back
+        pop es
+        popa
+        jmp .eat
+.m2:
         push ax
         call top_page
         cmp [PAGE], bl

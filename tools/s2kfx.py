@@ -24,7 +24,7 @@ import mido
 MIDI_OUT = "MIDI (OCTA-CAPTURE) 1"
 MIDI_IN = "MIDI (OCTA-CAPTURE) 0"
 AUDIO_IN = 6                              # MME "1-2 (OCTA-CAPTURE)": S2000 main L/R (user patched 2026-10-13)
-MENU_SEG = 0x3F00
+MENU_SEG = 0x3EA0                         # 0.13+ (0.09-0.12: 0x3F00)
 FXON_OFF, FXSEND_OFF = 0x0012, 0x0013
 SHADOW = (0x0000, 0x6D00)                 # DS:6D00 reg-A shadow (32 functions x 6 bytes)
 

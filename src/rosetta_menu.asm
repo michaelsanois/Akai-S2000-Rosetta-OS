@@ -1,4 +1,4 @@
-; Rosetta permanent helpers. Lives at MENU_SEG:0000 (linear 0x3F000) in the leftover load.asm object
+; Rosetta permanent helpers. Lives at MENU_SEG:0000 (linear 0x3EA00, right after the boot dragon) in the leftover load.asm object
 ; junk (0x3E01B-0x3FFFF): no refs, no segment reaches it, the voice table (2D95:9F80, 32 x 0x1BC) and
 ; MIDI tx ring (3B05:0000) below end at 0x3B160, and the emulator never writes it.
 ;
@@ -24,7 +24,7 @@ FX_SEND   equ 0x800F          ; reg7 word1: send level 0x80 (bits 15-8), e = 0, 
         jmp near send84       ; +6  from 2345:50EE (note-on) + 2345:5480 (periodic vol/pan update): `mov ax,[si+84h]` + `out 84h,ax`, + nop
         jmp near send22       ; +9  from 2345:41A8 (replaces `mov ax,[si+22h]` + `out 84h,ax`)
         jmp near sx_start     ; +C  from 2B9D:00FB (replaces `mov word [7DE6],63CBh` + nop): SysEx start
-        jmp near sx_byte      ; +F  from the 0FE4:F6B2 pad stub (`lcall 3F00:000F; ret`): SysEx data byte
+        jmp near sx_byte      ; +F  from the 0FE4:F6B2 pad stub (`lcall MENU_SEG:000F; ret`): SysEx data byte
                               ; (+15 lfo_hook sits after the data below: +12/+13 are poked by the lab)
 
 fxon:   db 0                  ; +12 current FX preset (0 = off; PC lab can poke it)
@@ -40,6 +40,7 @@ fxsendv: dw FX_SEND           ; +13 reg7 word1 OR value while on (send level/e/d
 page0_hook:
         mov byte [PAGE], 0
         push ax
+        call prog_entry       ; EDIT PROGRAM -> Rosetta menu (switches MODE to the 6 / 0x0C page slot)
         mov al, [cs:onfx]     ; FX page bookkeeping: EFFECTS pressed while on it = next type
         mov [cs:wasfx], al
         mov byte [cs:onfx], 0
@@ -83,7 +84,7 @@ fxsend: cmp byte [cs:fxon], 0
 SX_STOCK  equ 0x63CB          ; Akai SysEx handler 0FE4:63CB
 SX_STUB   equ 0xF6B2          ; 0FE4:F6B2 pad stub -> sx_byte
 SX_MAX    equ 420
-VERSION_W equ 0x0012          ; reply to PING
+VERSION_W equ 0x0013          ; reply to PING
 
 sx_start:
         mov word [0x7DE6], SX_STOCK
@@ -252,6 +253,7 @@ tx_w:   push ax               ; word in ax -> 4 nibbles
 
 %include "rosetta_fx.asm"
 %include "rosetta_home.asm"
+%include "rosetta_prog.asm"
 
 sxn:    dw 0
 sxbuf:  times SX_MAX db 0

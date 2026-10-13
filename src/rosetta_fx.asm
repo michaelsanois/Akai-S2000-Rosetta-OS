@@ -26,7 +26,12 @@ fx_entry:
         mov byte [MODE], MODE_FX
         pusha
         push es
-        cmp byte [cs:wasfx], 0
+        cmp byte [cs:ctx], CTX_PROG   ; the EDIT PROGRAM menu shares this page slot
+        jne .fx
+        xor al, al
+        call pm_render
+        jmp .done
+.fx:    cmp byte [cs:wasfx], 0
         je .show
         mov al, [cs:fxon]
         inc al
@@ -37,7 +42,7 @@ fx_entry:
 .show:  mov byte [cs:onfx], 1
         xor al, al
         call fx_render
-        pop es
+.done:  pop es
         popa
         retf
 
@@ -88,8 +93,13 @@ fx_poll:
         jz .r
 .go:    pusha                 ; DATA wheel / step: change the value
         push es
-        cbw
+        cmp byte [cs:ctx], CTX_PROG
+        jne .v
+        call pm_move          ; menu: move the selection
+        jmp .gd
+.v:     cbw
         call fx_change
+.gd:
         pop es
         popa
 .r:     ret
@@ -235,6 +245,10 @@ fx_render:
         mov di, fxbuf + 28
         call itoa3
         mov byte [cs:fxbuf + 31], ' '
+        pop ax
+        ; fall through
+; fxbuf -> page 0x0C RAM text (2D95:1402 / 1415); al != 0: also straight to the LCD
+fx_out: push ax
         mov ax, DATA_SEG
         mov es, ax
         mov si, fxbuf
@@ -474,6 +488,7 @@ lfo_hook:
         call 0x2345:0x0A47
         push ax
         call fx_poll
+        call pm_poll
         pop ax
         push ax
         cmp byte [cs:nmods], 0

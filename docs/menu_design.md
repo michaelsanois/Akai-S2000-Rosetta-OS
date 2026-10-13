@@ -1,4 +1,4 @@
-# Rosetta menu redesign (proposal, not built yet)
+# Rosetta menu redesign
 
 Goal (the user, 2026-10-13): submenus, essentials first, fewer combos, always know where you are.
 MPC ideas wanted: home-screen hub, EXIT = back one level, quick jobs. First target: the home screen.
@@ -51,6 +51,16 @@ song player · system) and FX (0.11 page).
 - HOME soft L **LOAD**: straight into the disk browser (no DISK/FLOPPY questions when there's one choice).
 - After a load: PLAY auditions the newest sample.
 - Later: "audition → assign to key/pad" in two presses.
+
+## Built (emulator-tested)
+- **0.12 = M1**: HOME line 2 `LOAD  <fx>  EDIT`, soft keys = LOAD / EDIT, home key = back one level.
+- **0.13 = M2**: EDIT opens `EDIT PROGRAM n/8` + `>GROUP` (on the FX page slot, mode 6 page 0x0C).
+  Wheel / PAGE / GROUP pick, right soft key = in, left soft key / home / EDIT = out.
+  Groups (stock pages): SAMPLES+ZONES 22-53, AMP ENVELOPE 54-59, FILTER+ENV2 60-70,
+  PITCH+BEND 6-7 + 96-98, OUTPUT 8-16, KEYGROUPS 17-21, PROGRAM 0-5, MODS+LFO 84-95.
+  Inside: PAGE wraps within the group (two-range groups jump A -> B -> A), GROUP = next/prev group,
+  home = back to the menu. Hidden stock pages (10-11, 21, empty zones, 71-83) are skipped by the stock step.
+- Code moved to MENU_SEG 0x3EA0 (0x3EA00-0x3FFFF, 5.5 KB) in 0.13.
 
 ## Build order
 - **M1 (0.12)**: HOME hub + status card + quick LOAD / EDIT soft keys + EXIT = back one level.

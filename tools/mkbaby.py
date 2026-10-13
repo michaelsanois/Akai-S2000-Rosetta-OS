@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.12"
+VERSION = "0.13"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -22,8 +22,8 @@ NASM = os.environ.get("NASM") or (_NASM_LOCAL if os.path.exists(_NASM_LOCAL) els
 JUNK_LO, JUNK_HI = 0x3E01B, 0x40000   # leftover OMF object (no refs), reused as RAM after boot
 DRAGON_SEG = 0x3E20                   # blob at linear 0x3E200, private stack up to +0x800
 DRAGON_SPAN = 0x800
-MENU_SEG = 0x3F00                     # permanent Rosetta code at linear 0x3F000 (src/rosetta_menu.asm)
-MENU_SPAN = 0x1000
+MENU_SEG = 0x3EA0                     # permanent Rosetta code at linear 0x3EA00 (src/rosetta_menu.asm), right after the dragon
+MENU_SPAN = 0x1600                    # up to the end of the junk (0x40000)
 BANNER = (" JSW ROSETTA OS ", f"  S2000  v{VERSION}  ")
 
 AKAI_CHARS = "0123456789 ABCDEFGHIJKLMNOPQRSTUVWXYZ#+-."
