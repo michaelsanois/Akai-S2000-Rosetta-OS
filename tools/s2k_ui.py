@@ -545,6 +545,15 @@ def main():
                                        so, a_, a_)
                 ui.emu.mu.ctl_flush_tb()
                 continue
+            if tok == "recdma":                         # let the record DMA ring move (takes can run)
+                ui.emu.rec_dma = True
+                continue
+            if tok.startswith("hold:"):                 # hold:r,c,TICKS press a key for that long
+                r, c, n_ = map(int, tok[5:].split(","))
+                ui.press((r, c), hold=n_)
+                mp_ = tuple(ui.emu.mu.mem_read(0x762B, 2))
+                print(f"{tok}: {mp_[0]:2d}/{mp_[1]:3d} {ui.screen()}", flush=True)
+                continue
             if tok == "hits":
                 print("hits:", getattr(ui, "hits", {}), flush=True)
                 continue

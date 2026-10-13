@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.16"
+VERSION = "0.17"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -138,10 +138,10 @@ PATCHES = [
     # `mov byte [8215],0`) -> MENU_SEG:001B, which flags it so the main loop jumps to the sample select page
     (0x2E9C3, b"             ARM", b"SETUP        ARM"),
     (lin(SEG_MAIN, 0x3CE7), bytes.fromhex("C606158200"), bytes.fromhex("9A1B00") + MENU_SEG.to_bytes(2, "little")),
-    # hold-to-record step 1: the armed loop's and the recording loop's key reads -> MENU_SEG:001E / 0021
-    # (REC key starts an armed take at once; a probe logs the take for the stop-on-release design)
+    # REC key = start/stop: the armed loop's key read -> MENU_SEG:001E (REC = GO), and a record step's DMA
+    # wait (2345:27EB `call 27F8` + `jb 27F7`) -> MENU_SEG:0021 (watches the key, ends the take early)
     (lin(SEG_MAIN, 0x3AA0), bytes.fromhex("A0D473C606D47300"), bytes.fromhex("9A1E00") + MENU_SEG.to_bytes(2, "little") + bytes.fromhex("909090")),
-    (lin(SEG_MAIN, 0x3B2C), bytes.fromhex("A0D473C606D47300"), bytes.fromhex("9A2100") + MENU_SEG.to_bytes(2, "little") + bytes.fromhex("909090")),
+    (lin(0x2345, 0x27EB), bytes.fromhex("E80A007207"), bytes.fromhex("9A2100") + MENU_SEG.to_bytes(2, "little")),
     # data-key auto-repeat (ticks ~2.04 ms: TCU ch0 4087 @ 2 MHz): first repeat 1000 -> 300,
     # interval start 200 -> 80, floor 40 -> 10 (step stays 10, so it lands exactly on the floor)
     (0x23C49, (1000).to_bytes(2, "little"), (300).to_bytes(2, "little")),

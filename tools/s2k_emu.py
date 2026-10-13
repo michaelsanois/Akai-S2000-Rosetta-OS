@@ -178,6 +178,10 @@ class S2K:
             return self.fdc.msr()
         if port == 0x22:
             return self.fdc.read()
+        if port == 0xC004 and self.ports.get(0xC001) == 2 and getattr(self, "rec_dma", False):
+            # record DMA (channel 2) current address in the 0:90D0 ring of 0x2000 bytes, moving with time
+            # (~180 bytes per tick ~ 88 kB/s mono 44.1 kHz), so takes run in emulation (seq token recdma)
+            return 0x90D0 + ((self.nblocks * 180 // TICK_BLOCKS) & 0x1FFE)
         if port == 0xC002:
             return 0xFFFF if size == 2 else 0xFF   # DMA count: transfer finished instantly (no sample data)
         if port == 0xC030:

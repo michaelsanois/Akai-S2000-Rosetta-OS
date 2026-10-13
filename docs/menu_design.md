@@ -73,9 +73,16 @@ song player · system) and FX (0.11 page).
   Stock record flow (emulator trace): ARM -> `About to record / GO  EXIT` = ARMED (loop 0FE4:3A98: the
   threshold starts the take, GO = left key starts now (3ABD -> 3AFD), EXIT = right key) -> `RECORDING analog /
   ABORT` = the take is running (loop 0FE4:3B13, ends when [7A7C] reaches 16 = the 16-step progress bar).
-  0.16: the REC key in the armed loop = GO (hook 3AA0), and a probe logs the take (hook 3B2C, tools/reclog.py)
-  to design hold-to-record (user: "sample as long as it's pressed"). The emulator can't run a take (it waits
-  on the record DMA in 2345:2781). A kept take (0FE4:3CE7) lands on
+  0.16: the REC key in the armed loop = GO (hook 3AA0) - hardware OK. A probe (hook 3B2C, removed in 0.17)
+  logged a 5 s mono take: [7508] = 220500 samples, [753D] = start 0x18AE0, [87BA] = length + 1, [7A68..7A6C]
+  = DMA bytes per 1/16 step (27562.5 = 2 bytes x 220500 / 16), [7A7C] = step 1..16 (~98 ticks each),
+  [7A74..76] = DMA ring target (16.16), [7A64] stays the start. Each step (2345:2781) waits on the record DMA
+  (channel 2, current address port C004, ring 0:90D0 of 0x2000 bytes) in 2345:27EB `call 27F8`; 2345:2819
+  bumps [7A7C]; at 16 the loop ends, 0FE4:3B77 stops the chip and builds the sample from [87BA].
+  0.17 = REC key start/stop (hook 2345:27EB, src/rosetta_rec.asm): held = stops on release, tapped
+  (< ~0.28 s) = latched until the next press; stop = this step ends now, [7A7C] = 15, [87BA] = DMA bytes
+  since the start / bytes-per-sample + 1 (min 0x1000). Mono only; stereo takes run full length (the R half
+  starts at start + full length, cutting it isn't worked out). The emulator moves the DMA with `recdma`. A kept take (0FE4:3CE7) lands on
   the sample select page (EDIT SAMPLE page 0, inside its SAMPLE+PITCH group); ABORT stays on the meter.
   Later (user: "full later"?): one custom MPC page (`>ST >5.0s  ARM` + meter), skip the GO confirm.
   REC variables (read off the record code, not yet confirmed): [7500] stereo, [7501], [7502] start type (0 = THRES), [7503] threshold, [7508] length (dword),

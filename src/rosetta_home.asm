@@ -75,7 +75,11 @@ key_hook:
         pop es
         popa
         jmp .eat
-.mode:  cmp al, KEY_EDIT              ; EDIT on the menu = out (stock would flip 6 -> 7)
+.mode:  cmp al, KEY_REC               ; the REC press that stopped a latched take: not a new REC
+        jne .m0
+        call rec_eat
+        jc .eat
+.m0:    cmp al, KEY_EDIT              ; EDIT on the menu = out (stock would flip 6 -> 7)
         jne .m1
         cmp byte [cs:ctx], CTX_MENU
         jne .pass

@@ -33,7 +33,8 @@ an S2000 again.
 | **HOME hub**: main screen line 2 = `LOAD  HALL  EDIT`, the soft keys under the screen jump to LOAD and EDIT | emulator ✅, hardware test next |
 | **Back one level**: the home key steps back (page → top of the mode → HOME) instead of always jumping home | emulator ✅, hardware test next |
 | **Area menus**: EDIT PROGRAM (8 groups), EDIT SAMPLE (6) and GLOBAL (4) open a menu, essentials first. PAGE stays inside the group, GROUP jumps to the next one | EDIT PROGRAM ✅ on hardware (0.13), the rest emulator ✅ |
-| **Sampling screen**: REC opens on the input meter with `SETUP        ARM` (stock hides it behind GROUP); a finished take lands on the sample select page | emulator ✅, hardware test next |
+| **Sampling screen**: REC opens on the input meter with `SETUP        ARM` (stock hides it behind GROUP); a finished take lands on the sample select page | ✅ on hardware (0.16) |
+| **REC = start/stop**: armed, hold REC to record while held, or tap to start and tap again to stop | emulator ✅, hardware test next |
 | **PLAY always plays**: with no program active, PLAY and MIDI notes audition the current sample | ✅ on hardware |
 | **LOAD / SAVE in one press**: skips "DISK or FLASHROM" when no flash ROM is fitted | ✅ on hardware |
 | **Faster data-key repeat** | ✅ on hardware |
@@ -69,7 +70,9 @@ room to grow (modulated feedback taps are next).
   `>SAMPLES+ZONES`. DATA wheel or PAGE picks a group, the right button goes in, the left button goes out.
   Inside a group, PAGE loops through that group's pages and GROUP jumps to the next group.
 - **REC**: opens on the input meter. Right button = ARM: the take starts when the sound passes the threshold,
-  or press GO (left button) or REC to start now. Left button = SETUP (name, length, mono/stereo, pitch, threshold); home = back to
+  or press GO (left button) or REC to start now. **REC = start/stop**: hold it and the take stops when you let
+  go; tap it and the take runs until you tap again (mono; the sample is cut to what was recorded, up to the
+  SETUP length). Left button = SETUP (name, length, mono/stereo, pitch, threshold); home = back to
   the meter. After the take you land on the sample select page.
 - **Home key**: back one level (page → menu → HOME).
 - **PLAY**: auditions the current sample when no program is loaded.
