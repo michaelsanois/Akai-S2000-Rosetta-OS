@@ -32,6 +32,8 @@ an S2000 again.
 | **EFFECTS page**: `>HALL >WET 50` / `>T100 >F100 >R100` (type, wet, time/size, feedback, LFO rate) | emulator ✅, hardware test next |
 | **HOME hub**: main screen line 2 = `LOAD  HALL  EDIT`, the soft keys under the screen jump to LOAD and EDIT | emulator ✅, hardware test next |
 | **Back one level**: the home key steps back (page → top of the mode → HOME) instead of always jumping home | emulator ✅, hardware test next |
+| **Area menus**: EDIT PROGRAM (8 groups), EDIT SAMPLE (6) and GLOBAL (4) open a menu, essentials first. PAGE stays inside the group, GROUP jumps to the next one | EDIT PROGRAM ✅ on hardware (0.13), the rest emulator ✅ |
+| **Sampling screen**: REC opens on the input meter with `SETUP        ARM` (stock hides it behind GROUP); a finished take lands on the sample select page | emulator ✅, hardware test next |
 | **PLAY always plays**: with no program active, PLAY and MIDI notes audition the current sample | ✅ on hardware |
 | **LOAD / SAVE in one press**: skips "DISK or FLASHROM" when no flash ROM is fitted | ✅ on hardware |
 | **Faster data-key repeat** | ✅ on hardware |
@@ -63,7 +65,13 @@ room to grow (modulated feedback taps are next).
   The two buttons under the screen move the `>`; the DATA wheel and the PAGE/GROUP keys change the value.
 - **HOME** (main screen): line 2 shows `LOAD  <effect>  EDIT`. Left button under the screen = LOAD,
   right button = EDIT program.
-- **Home key**: back one level.
+- **Menus**: EDIT (program), REC → EDIT (sample) and TUNE (global) open a menu like `EDIT PROGRAM 1/8` /
+  `>SAMPLES+ZONES`. DATA wheel or PAGE picks a group, the right button goes in, the left button goes out.
+  Inside a group, PAGE loops through that group's pages and GROUP jumps to the next group.
+- **REC**: opens on the input meter. Right button = ARM (then GO; the take starts at the threshold, or press the
+  left button to start now). Left button = SETUP (name, length, mono/stereo, pitch, threshold); home = back to
+  the meter. After the take you land on the sample select page.
+- **Home key**: back one level (page → menu → HOME).
 - **PLAY**: auditions the current sample when no program is loaded.
 
 ## Quick start (build your own disk)
@@ -103,8 +111,6 @@ Every patch checks the stock bytes first, so a wrong OS image fails loudly inste
 It boots and the FX work on a real S2000. Expect rough edges.
 
 **Planned:**
-- **EDIT PROGRAM menu**: 8 groups, essentials first (samples, amp envelope, filter, pitch, output, keygroups,
-  program, modulation) instead of 85 pages in a row. Then SAMPLE, MULTI and GLOBAL menus.
 - Quick jobs (load → audition → assign in a couple of presses).
 - Per-program FX send, tempo-synced echo, denser and modulated reverbs.
 

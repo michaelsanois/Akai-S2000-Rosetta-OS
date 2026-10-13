@@ -32,6 +32,7 @@ fxsendv: dw FX_SEND           ; +13 reg7 word1 OR value while on (send level/e/d
         jmp near lfo_hook     ; +15 from 0FE4:000D (replaces the main-loop wait's lcall 2345:0A47)
         jmp near key_hook     ; +18 from 0FE4:0264 (replaces `mov al,[73D4]` + `test al,0C0h`): HOME jobs,
                               ;     home key = back one level, FX page keys (src/rosetta_home.asm)
+        jmp near rec_done     ; +1B from 0FE4:3CE7 (replaces `mov byte [8215],0` at the end of a kept take)
 
 ; Mode entry sets page 0. For LOAD/SAVE without a flash ROM, page 0 only asks
 ; "DISK or FLASHROM" and FLASHROM just says "No Flash ROM fitted!" -> start on page 1
@@ -40,7 +41,7 @@ fxsendv: dw FX_SEND           ; +13 reg7 word1 OR value while on (send level/e/d
 page0_hook:
         mov byte [PAGE], 0
         push ax
-        call prog_entry       ; EDIT PROGRAM -> Rosetta menu (switches MODE to the 6 / 0x0C page slot)
+        call prog_entry       ; EDIT PROGRAM / EDIT SAMPLE / GLOBAL -> Rosetta menu (switches MODE to the 6 / 0x0C page slot)
         mov al, [cs:onfx]     ; FX page bookkeeping: EFFECTS pressed while on it = next type
         mov [cs:wasfx], al
         mov byte [cs:onfx], 0
@@ -49,7 +50,11 @@ page0_hook:
         jnz .ls
         call home_text        ; HOME: refresh line 2 (FX name) before the OS draws it
         jmp .done
-.ls:    cmp al, MODE_LOAD
+.ls:    cmp al, MODE_REC
+        jne .ls2
+        mov byte [PAGE], REC_ARM  ; REC opens on the meter + ARM page (src/rosetta_rec.asm)
+        jmp .done
+.ls2:   cmp al, MODE_LOAD
         je .chk
         cmp al, MODE_SAVE
         jne .done
@@ -84,7 +89,7 @@ fxsend: cmp byte [cs:fxon], 0
 SX_STOCK  equ 0x63CB          ; Akai SysEx handler 0FE4:63CB
 SX_STUB   equ 0xF6B2          ; 0FE4:F6B2 pad stub -> sx_byte
 SX_MAX    equ 420
-VERSION_W equ 0x0013          ; reply to PING
+VERSION_W equ 0x0015          ; reply to PING
 
 sx_start:
         mov word [0x7DE6], SX_STOCK
@@ -254,6 +259,7 @@ tx_w:   push ax               ; word in ax -> 4 nibbles
 %include "rosetta_fx.asm"
 %include "rosetta_home.asm"
 %include "rosetta_prog.asm"
+%include "rosetta_rec.asm"
 
 sxn:    dw 0
 sxbuf:  times SX_MAX db 0

@@ -26,7 +26,7 @@ fx_entry:
         mov byte [MODE], MODE_FX
         pusha
         push es
-        cmp byte [cs:ctx], CTX_PROG   ; the EDIT PROGRAM menu shares this page slot
+        cmp byte [cs:ctx], CTX_MENU   ; the area menus share this page slot
         jne .fx
         xor al, al
         call pm_render
@@ -93,7 +93,7 @@ fx_poll:
         jz .r
 .go:    pusha                 ; DATA wheel / step: change the value
         push es
-        cmp byte [cs:ctx], CTX_PROG
+        cmp byte [cs:ctx], CTX_MENU
         jne .v
         call pm_move          ; menu: move the selection
         jmp .gd
@@ -489,6 +489,7 @@ lfo_hook:
         push ax
         call fx_poll
         call pm_poll
+        call rec_poll
         pop ax
         push ax
         cmp byte [cs:nmods], 0

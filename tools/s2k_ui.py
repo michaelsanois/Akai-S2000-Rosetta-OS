@@ -126,7 +126,7 @@ def main():
     # boot until the main screen is up ("prog active" on line 2), then let it settle
     for _ in range(120):
         ui.run_blocks(1_000_000)
-        if "prog active" in ui.emu.lcd.lines()[1]:
+        if any(t in ui.emu.lcd.lines()[1] for t in ("prog active", "LOAD ")):   # stock / Rosetta 0.12+ HOME
             ui.run_blocks(2_000_000)
             break
     print(f"booted in {time.time() - t:.0f}s: {ui.screen()}")
@@ -533,9 +533,21 @@ def main():
                 ui.emu.mu.mem_write(int(addr, 16), bytes.fromhex(val))
                 print(f"{tok}")
                 continue
-            r, c = map(int, tok.split(","))
-            ui.press((r, c))
-            print(f"{tok}: {ui.screen()}")
+            if tok == "where":                          # where: sample CS:IP over a while (find a busy loop)
+                from collections import Counter
+                hits = Counter()
+                for _ in range(40):
+                    ui.run_blocks(3000)
+                    hits[f"{ui.emu.mu.reg_read(UC_X86_REG_CS):04x}:{ui.emu.mu.reg_read(UC_X86_REG_IP):04x}"] += 1
+                print("where:", hits.most_common(8), flush=True)
+                continue
+            if tok.startswith("wait:"):                 # wait:N ticks (2 ms each), then show the screen
+                ui.ticks(int(tok[5:]))
+            else:
+                r, c = map(int, tok.split(","))
+                ui.press((r, c))
+            mp_ = tuple(ui.emu.mu.mem_read(0x762B, 2))
+            print(f"{tok}: {mp_[0]:2d}/{mp_[1]:3d} {ui.screen()}", flush=True)
     elif cmd == "pagewalk":
         # pagewalk: per mode key, what each nav key (0x44-0x47 = r1c0 r0c0 r5c0 r4c0) does, then walk the
         # page+ key through the whole mode: (mode, page) + LCD per step -> menu redesign inventory
@@ -594,6 +606,27 @@ def main():
                     if m1 in seen:
                         break
                     seen.add(m1)
+    elif cmd == "pagekeys":
+        # pagekeys N r,c ...: go there via the keys, then on each of N pages (PAGE+ = r0c0 between them)
+        # press every panel key from the same state and print what changed (mode/page + LCD)
+        e = ui.emu
+        mp = lambda: tuple(e.mu.mem_read(0x762B, 2))
+        n = int(sys.argv[3])
+        for tok in sys.argv[4:]:
+            ui.press(tuple(map(int, tok.split(","))))
+        keys = [(r, c) for r in range(8) for c in range(2)]
+        for _ in range(n):
+            s0 = ui.snapshot()
+            m0, l0 = mp(), ui.screen()
+            print(f"== {m0[0]}/{m0[1]:3d} {l0}", flush=True)
+            for k in keys:
+                ui.restore(s0)
+                ui.press(k)
+                m1, l1 = mp(), ui.screen()
+                if (m1, l1) != (m0, l0):
+                    print(f"   r{k[0]}c{k[1]} -> {m1[0]}/{m1[1]:3d} {l1}", flush=True)
+            ui.restore(s0)
+            ui.press((0, 0))
     elif cmd == "isrcheck":
         # do any interrupt handlers write the voice chip (0x80-0x8C)? A select+data pair split by an ISR
         # write would corrupt the main loop's (and Rosetta's LFO) chip writes. Notes + chorus for N ticks.

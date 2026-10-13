@@ -61,14 +61,29 @@ song player · system) and FX (0.11 page).
   Inside: PAGE wraps within the group (two-range groups jump A -> B -> A), GROUP = next/prev group,
   home = back to the menu. Hidden stock pages (10-11, 21, empty zones, 71-83) are skipped by the stock step.
 - Code moved to MENU_SEG 0x3EA0 (0x3EA00-0x3FFFF, 5.5 KB) in 0.13.
+- **0.14 = M3**: one menu engine, three areas (tables `a_*` / `g_*` in src/rosetta_prog.asm):
+  - EDIT SAMPLE (REC then EDIT) `EDIT SAMPLE n/6`: SAMPLE+PITCH 0-4, TRIM 6-7, LOOP 8-13,
+    NORM+REV+FADE 5 + 14-16, RESAMPLE 17-19, TIMESTRETCH 20-24. Out = back to REC.
+  - GLOBAL (TUNE key) `GLOBAL n/4`: TUNE+LEVEL 0-1, MIDI 2-5 + 26, DISK+SCSI 6-7 + 24-25,
+    SONG PLAYER 17-22. Out = HOME.
+  - The selection is remembered per area. EDIT MULTI (9 pages) stays stock.
+- **Sampling screen (M3b, user-picked "quick" version)**: REC opens on the stock record page (mode 4 page 5,
+  normally hidden behind GROUP): input meter + `SETUP        ARM`. Left = SETUP (REC pages 0-4: name,
+  length+B/W, start+mono/stereo, orig pitch, threshold), home = back to the meter, home again = HOME.
+  Stock record flow (emulator): ARM -> `About to record / GO  EXIT` -> GO -> `RECORDING analog / ABORT`
+  (waits for the threshold; the left key starts at once, 0FE4:3ABD) -> take. A kept take (0FE4:3CE7) lands on
+  the sample select page (EDIT SAMPLE page 0, inside its SAMPLE+PITCH group); ABORT stays on the meter.
+  Later (user: "full later"?): one custom MPC page (`>ST >5.0s  ARM` + meter), skip the GO confirm.
+  REC variables (read off the record code, not yet confirmed): [7500] stereo, [7501], [7502] start type (0 = THRES), [7503] threshold, [7508] length (dword),
+  [750C] bandwidth, [7577] digital in, [7581] armed, [7A87] input level.
 
 ## Build order
 - **M1 (0.12)**: HOME hub + status card + quick LOAD / EDIT soft keys + EXIT = back one level.
 - **M2**: EDIT PROGRAM menu with group-limited paging + breadcrumb.
-- **M3**: SAMPLE, MULTI, GLOBAL menus.
+- **M3 (0.14)**: SAMPLE + GLOBAL menus (MULTI is short enough to stay stock).
 - **M4**: more quick jobs.
 
 ## Open
-- EDIT SAMPLE (mode 5) and EDIT FX (7) page lists aren't walked yet.
+- EDIT FX (7) page list isn't walked yet (only matters with an EB16).
 - Real panel labels (only known from the matrix + reviews).
-- Free code space: ~0.6 KB left in MENU_SEG; the menus need the demo songs/setups space (OK'd).
+- Free code space: ~0.7 KB left in MENU_SEG (0.14 blob 4955 of 5632 B).

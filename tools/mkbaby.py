@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.13"
+VERSION = "0.15"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -133,6 +133,11 @@ PATCHES = [
     # FX page keys: the key dispatcher's event read (0FE4:0264 mov al,[73D4] + test al,0C0h) -> MENU_SEG:0018
     # (soft keys on page 0x0C are consumed there; everything else passes through unchanged)
     (lin(SEG_MAIN, 0x0264), bytes.fromhex("A0D473A8C0"), bytes.fromhex("9A1800") + MENU_SEG.to_bytes(2, "little")),
+    # sampling screen (menu M3b, src/rosetta_rec.asm): REC opens on the meter + ARM page (mode 4 page 5),
+    # its line 2 gets the SETUP label for the left soft key, and the end of a kept take (0FE4:3CE7
+    # `mov byte [8215],0`) -> MENU_SEG:001B, which flags it so the main loop jumps to the sample select page
+    (0x2E9C3, b"             ARM", b"SETUP        ARM"),
+    (lin(SEG_MAIN, 0x3CE7), bytes.fromhex("C606158200"), bytes.fromhex("9A1B00") + MENU_SEG.to_bytes(2, "little")),
     # data-key auto-repeat (ticks ~2.04 ms: TCU ch0 4087 @ 2 MHz): first repeat 1000 -> 300,
     # interval start 200 -> 80, floor 40 -> 10 (step stays 10, so it lands exactly on the floor)
     (0x23C49, (1000).to_bytes(2, "little"), (300).to_bytes(2, "little")),
