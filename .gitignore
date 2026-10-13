@@ -1,0 +1,24 @@
+# Whitelist: everything is ignored unless listed below.
+# Never commit Akai data: OS images (.td0/.img/.bin/.hfe), builds, stick backups, recordings.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/src/
+!/tools/
+!/docs/
+!/art/
+
+tools/__pycache__/
+*.pyc
+*.td0
+*.img
+*.hfe
+*.bin
+*.wav
+*.lst
+*.bak
+*.inc
+
+# the dragon animation frames (JSW's GP-16 art), not Akai data
+!/art/dragon_frames.bin

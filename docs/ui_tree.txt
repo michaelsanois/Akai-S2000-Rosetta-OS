@@ -1,0 +1,155 @@
+booted in 55s: |TEST PROGRAM  36|  0 prog active |
+== r0c0: |TEST PROGRAM   1|RENUM        DEL|
+   + r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r1c0: |TEST PROGRAM  36|  0 prog active |
+   + r1c1: |TEST PROGRAM  36|  0 prog active |
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r2c1: |Renum progs 1-??|ABORT         GO|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c0: |TEST PROGRAM  36|  0 prog active |
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r5c0: |TEST PROGRAM  36|  0 prog active |
+   + r5c1: |TEST PROGRAM   1|Program   Number|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r0c0: |Pnum   MIDI chan|  1            1|
+   + r1c1: |TEST PROGRAM  36|  0 prog active |
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r2c1: |CAN'T DELETE    |LAST PROGRAM!   |
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c0: |Pnum   MIDI chan|  1            1|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r5c1: |TEST PROGRAM    |RENAME      COPY|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r1c0: |TEST PROGRAM  36|  0 prog active |
+   + r0c0: |TEST PROGRAM   1|RENUM        DEL|
+   + r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r1c1: |TEST PROGRAM  36|  0 prog active |
+   + r0c0: |TEST PROGRAM   1|RENUM        DEL|
+   + r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r1c1: |TEST PROGRAM  36|  0 prog active |
+   + r2c1: |DISK LOAD       |FLOPPY      HDSK|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r5c1: |No Flash ROM    |fitted!         |
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r2c1: |TEST PROGRAM  36|  0 prog active |
+   + r0c0: |TEST PROGRAM   1|RENUM        DEL|
+   + r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r3c0: | Effects board  |EB16 not present|
+   + r1c1: |TEST PROGRAM  36|  0 prog active |
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r0c0: |OUTPUT LEVEL    |            +0dB|
+   + r1c1: |TEST PROGRAM  36|  0 prog active |
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r4c0: |OUTPUT LEVEL    |            +0dB|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r4c0: |TEST PROGRAM  36|  0 prog active |
+   + r0c0: |TEST PROGRAM   1|RENUM        DEL|
+   + r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r4c1: |    JAPAN BEAT  |            NAME|
+   + r0c0: |ASSIGN PROG    1|Pt 6            |
+   + r0c1: |PART 6   Chan  6|               1|
+   + r1c1: |TEST PROGRAM  36|  0 prog active |
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r5c1: |JAPAN BEAT      |          RENAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r5c0: |TEST PROGRAM  36|  0 prog active |
+   + r0c0: |TEST PROGRAM   1|RENUM        DEL|
+   + r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r5c1: |TEST PROGRAM  36|  0 prog active |
+   + r0c0: |TEST PROGRAM   1|RENUM        DEL|
+   + r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r6c0: |TEST PROGRAM  36|  0 prog active |
+   + r0c0: |TEST PROGRAM   1|RENUM        DEL|
+   + r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r1c1: |TEST PROGRAM  36|  0 prog active |
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r2c1: |DISK SAVE       |FLOPPY      HDSK|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r5c1: |No Flash ROM    |fitted!         |
+   + r7c1: |REC SINE        |            NAME|
+== r7c0: |TEST PROGRAM  36|  0 prog active |
+   + r0c0: |TEST PROGRAM   1|RENUM        DEL|
+   + r0c1: |TEST PROGRAM   1|DEL         NAME|
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+   + r7c1: |REC SINE        |            NAME|
+== r7c1: |REC SINE        |            NAME|
+   + r0c0: |REC  Length  B/W|       1.00  20K|
+   + r0c1: |IN MEM  4  F100%|    SINE        |
+   + r1c1: |TEST PROGRAM  36|  0 prog active |
+   + r2c0: |LOAD FROM       |DISK    FLASHROM|
+   + r3c0: | Effects board  |EB16 not present|
+   + r3c1: |TUNE  Semi  Cent|       +00   +00|
+   + r4c0: |REC  Length  B/W|       1.00  20K|
+   + r4c1: |    JAPAN BEAT  |            NAME|
+   + r5c1: |SINE            |              OK|
+   + r6c1: |SAVE TO         |DISK    FLASHROM|
+exit 0

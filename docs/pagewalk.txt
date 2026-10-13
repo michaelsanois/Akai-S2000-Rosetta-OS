@@ -1,0 +1,116 @@
+booted in 60s: |ROSETTA 0.11  36|  0 prog active |
+===== MAIN: mode/page (0, 0) |ROSETTA 0.11  36|  0 prog active |
+   nav r1c0 -> (0, 0) |ROSETTA 0.11  36|  0 prog active |
+   nav r0c0 -> (0, 1) |ROSETTA 0.11   1|RENUM        DEL|
+   nav r5c0 -> (0, 0) |ROSETTA 0.11  36|  0 prog active |
+   nav r4c0 -> (0, 0) |ROSETTA 0.11  36|  0 prog active |
+       0/ 1 |ROSETTA 0.11   1|RENUM        DEL|
+       0/ 1 |ROSETTA 0.11   1|RENUM        DEL|
+===== r0c1: mode/page (1, 0) |ROSETTA 0.11   1|DEL         NAME|
+   nav r1c0 -> (1, 0) |ROSETTA 0.11   1|DEL         NAME|
+   nav r0c0 -> (1, 1) |Pnum   MIDI chan|  1            1|
+   nav r5c0 -> (1, 0) |ROSETTA 0.11   1|DEL         NAME|
+   nav r4c0 -> (1, 1) |Pnum   MIDI chan|  1            1|
+       1/ 1 |Pnum   MIDI chan|  1            1|
+       1/ 2 |Edit monitor    |          SINGLE|
+       1/ 3 |Polyph. Priority|32          NORM|
+       1/ 4 |Keygrp Crossfade|             OFF|
+       1/ 5 |Mono Legato mode|             OFF|
+       1/ 6 |TUNE  Semi.Cents|       +00.00   |
+       1/ 7 |TRANSPOSE   Semi|             +00|
+       1/ 8 |OUT   Loud   Vel|       80    +20|
+       1/ 9 |OUT    L/R   Pan|        99   MID|
+       1/12 |OUT MOD1        | Keybrd      +00|
+       1/13 |OUT MOD2        | Press.      +00|
+       1/14 |PAN MOD1        |   Lfo2      +00|
+       1/15 |PAN MOD2        | Keybrd      +00|
+       1/16 |PAN MOD3        |  !Bend      +00|
+       1/17 |NO OF KGRPS    1|DEL  KG 1   COPY|
+       1/18 |SPAN   Low  High|KG 1   C_0   G_8|
+       1/19 |Mute Group      |KG 1         OFF|
+       1/20 |Vel Zone Xfade  |KG 1         ON |
+       1/22 |ZONE1 Assign    |KG 1SINE        |
+       1/23 |ZONE1 Semi.Cents|KG 1   +00.00   |
+       1/24 |ZONE1  Level Pan|KG 1    +00  MID|
+       1/25 |ZONE1 Filt Indiv|KG 1   +00   OFF|
+       1/26 |ZONE1 Vlow Vhigh|KG 1    0   127 |
+       1/27 |ZONE1  Kbd track|KG 1       TRACK|
+       1/28 |ZONE1  Loop type|KG 1    AS SAMPL|
+       1/29 |ZONE1 Velo>start|KG 1       +0000|
+       1/30 |ZONE2 Assign   ?|KG 1            |
+       1/38 |ZONE3 Assign   ?|KG 1            |
+       1/46 |ZONE4 Assign   ?|KG 1            |
+       1/54 |ENV1    Template|KG 1        ENV1|
+       1/55 |ENV1  A  D  S  R|KG 1 25 50 99 45|
+       1/56 |ENV1 Key scaling|KG 1         +00|
+       1/57 |ENV1 V>att V>rel|KG 1  +00   +00 |
+       1/58 |ENV1 Attack hold|KG 1         OFF|
+       1/59 |AMP MOD3        |KG 1  Veloc. +00|
+       1/60 |FILTER Freq Reso|KG 1    99     0|
+       1/61 |FILTER Kbd Track|KG 1         +00|
+       1/62 |FILTER MOD 1    |KG 1  Veloc. +00|
+       1/63 |FILTER MOD 2    |KG 1    Lfo2 +00|
+       1/64 |FILTER MOD 3    |KG 1    Env2 +00|
+       1/65 |ENV2    Template|KG 1        ENV2|
+       1/66 |ENV2 R1 R2 R3 R4|KG 1 00 50 50 45|
+       1/67 |ENV2 L1 L2 L3 L4|KG 1 99 99 99 00|
+       1/68 |ENV2 Vel>out lvl|KG 1         +25|
+       1/69 |ENV2 Key scaling|KG 1         +00|
+       1/70 |ENV2  V>R1  V>R4|KG 1   +00   +00|
+       1/84 |PITCHMOD1   LFO1|KG 1         +50|
+       1/85 |PITCHMOD2       |KG 1    Env2 +00|
+===== MULTI: mode/page (2, 0) |    JAPAN BEAT  |            NAME|
+   nav r1c0 -> (2, 0) |    JAPAN BEAT  |            NAME|
+   nav r0c0 -> (2, 1) |ASSIGN PROG    1|Pt 6            |
+   nav r5c0 -> (2, 0) |    JAPAN BEAT  |            NAME|
+   nav r4c0 -> (2, 0) |    JAPAN BEAT  |            NAME|
+       2/ 1 |ASSIGN PROG    1|Pt 6            |
+       2/ 2 |MIDI Channel    |Pt 6           6|
+       2/ 3 |STEREO Level Pan|Pt 6     99  MID|
+       2/ 5 |FX SEND Bus Send|Pt 6    OFF  25 |
+       2/ 6 |FINE TUNE  Cents|Pt 6         +00|
+       2/ 7 |TRANSPOSE   Semi|Pt 6         +00|
+       2/ 8 |KEYRANGE Lo   Hi|Pt 6    C_0  G_8|
+       2/ 9 |VOICE PRIORITY  |Pt 6        NORM|
+       2/ 9 |VOICE PRIORITY  |Pt 6        NORM|
+===== REC: mode/page (4, 0) |REC SINE        |            NAME|
+   nav r1c0 -> (4, 0) |REC SINE        |            NAME|
+   nav r0c0 -> (4, 1) |REC  Length  B/W|       1.00  20K|
+   nav r5c0 -> (4, 0) |REC SINE        |            NAME|
+   nav r4c0 -> (4, 1) |REC  Length  B/W|       1.00  20K|
+       4/ 1 |REC  Length  B/W|       1.00  20K|
+       4/ 2 |REC Start   Type|    THRES   MONO|
+       4/ 3 |REC   Orig pitch|             C_3|
+       4/ 4 |REC Thresh -20dB|??????????????  |
+       4/ 4 |REC Thresh -20dB|??????????????  |
+===== TUNE: mode/page (8, 0) |TUNE  Semi  Cent|       +00   +00|
+   nav r1c0 -> (8, 0) |TUNE  Semi  Cent|       +00   +00|
+   nav r0c0 -> (8, 1) |OUTPUT LEVEL    |            +0dB|
+   nav r5c0 -> (8, 0) |TUNE  Semi  Cent|       +00   +00|
+   nav r4c0 -> (8, 1) |OUTPUT LEVEL    |            +0dB|
+       8/ 1 |OUTPUT LEVEL    |            +0dB|
+       8/ 2 |Program change  |MIDI Channel OMN|
+       8/ 3 |Ext APM control |          BREATH|
+       8/ 4 |MIDI RECEIVE    |                |
+       8/ 5 |PLAY Ch Note Vel|      1  C_3 127|
+       8/ 6 |HDISK  ID SECTOR|SCSI    5   512b|
+       8/ 7 |FORMAT          |DISK    FLASHROM|
+       8/17 |MIDI SONG FILE  |DISK            |
+       8/19 |SMF Song  Select|DEL             |
+       8/20 |Manual     Tempo|120BPM      File|
+       8/21 |Start        End|  1          999|
+       8/22 |SMF Song play   |GO              |
+       8/24 |   LOCAL SCSI ID|               6|
+       8/25 |MIDI VIA SCSI   |             OFF|
+       8/26 |MIDI Sysex Chan |               1|
+       8/26 |MIDI Sysex Chan |               1|
+===== LOAD: mode/page (10, 1) |DISK LOAD       |FLOPPY      HDSK|
+   nav r1c0 -> (10, 0) |LOAD FROM       |DISK    FLASHROM|
+   nav r0c0 -> (10, 1) |DISK LOAD       |FLOPPY      HDSK|
+   nav r5c0 -> (10, 0) |LOAD FROM       |DISK    FLASHROM|
+   nav r4c0 -> (10, 1) |DISK LOAD       |FLOPPY      HDSK|
+===== SAVE: mode/page (9, 1) |DISK SAVE       |FLOPPY      HDSK|
+   nav r1c0 -> (9, 0) |SAVE TO         |DISK    FLASHROM|
+   nav r0c0 -> (9, 1) |DISK SAVE       |FLOPPY      HDSK|
+   nav r5c0 -> (9, 0) |SAVE TO         |DISK    FLASHROM|
+   nav r4c0 -> (9, 1) |DISK SAVE       |FLOPPY      HDSK|
