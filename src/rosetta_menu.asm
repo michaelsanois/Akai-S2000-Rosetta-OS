@@ -33,6 +33,8 @@ fxsendv: dw FX_SEND           ; +13 reg7 word1 OR value while on (send level/e/d
         jmp near key_hook     ; +18 from 0FE4:0264 (replaces `mov al,[73D4]` + `test al,0C0h`): HOME jobs,
                               ;     home key = back one level, FX page keys (src/rosetta_home.asm)
         jmp near rec_done     ; +1B from 0FE4:3CE7 (replaces `mov byte [8215],0` at the end of a kept take)
+        jmp near rec_armkey   ; +1E from 0FE4:3AA0 (armed loop's `mov al,[73D4]` + `mov byte [73D4],0`, + 3 nop)
+        jmp near rec_loopkey  ; +21 from 0FE4:3B2C (recording loop's, same bytes)
 
 ; Mode entry sets page 0. For LOAD/SAVE without a flash ROM, page 0 only asks
 ; "DISK or FLASHROM" and FLASHROM just says "No Flash ROM fitted!" -> start on page 1
@@ -89,7 +91,7 @@ fxsend: cmp byte [cs:fxon], 0
 SX_STOCK  equ 0x63CB          ; Akai SysEx handler 0FE4:63CB
 SX_STUB   equ 0xF6B2          ; 0FE4:F6B2 pad stub -> sx_byte
 SX_MAX    equ 420
-VERSION_W equ 0x0015          ; reply to PING
+VERSION_W equ 0x0016          ; reply to PING
 
 sx_start:
         mov word [0x7DE6], SX_STOCK

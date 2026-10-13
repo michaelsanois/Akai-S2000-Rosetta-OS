@@ -70,8 +70,12 @@ song player · system) and FX (0.11 page).
 - **Sampling screen (M3b, user-picked "quick" version)**: REC opens on the stock record page (mode 4 page 5,
   normally hidden behind GROUP): input meter + `SETUP        ARM`. Left = SETUP (REC pages 0-4: name,
   length+B/W, start+mono/stereo, orig pitch, threshold), home = back to the meter, home again = HOME.
-  Stock record flow (emulator): ARM -> `About to record / GO  EXIT` -> GO -> `RECORDING analog / ABORT`
-  (waits for the threshold; the left key starts at once, 0FE4:3ABD) -> take. A kept take (0FE4:3CE7) lands on
+  Stock record flow (emulator trace): ARM -> `About to record / GO  EXIT` = ARMED (loop 0FE4:3A98: the
+  threshold starts the take, GO = left key starts now (3ABD -> 3AFD), EXIT = right key) -> `RECORDING analog /
+  ABORT` = the take is running (loop 0FE4:3B13, ends when [7A7C] reaches 16 = the 16-step progress bar).
+  0.16: the REC key in the armed loop = GO (hook 3AA0), and a probe logs the take (hook 3B2C, tools/reclog.py)
+  to design hold-to-record (user: "sample as long as it's pressed"). The emulator can't run a take (it waits
+  on the record DMA in 2345:2781). A kept take (0FE4:3CE7) lands on
   the sample select page (EDIT SAMPLE page 0, inside its SAMPLE+PITCH group); ABORT stays on the meter.
   Later (user: "full later"?): one custom MPC page (`>ST >5.0s  ARM` + meter), skip the GO confirm.
   REC variables (read off the record code, not yet confirmed): [7500] stereo, [7501], [7502] start type (0 = THRES), [7503] threshold, [7508] length (dword),

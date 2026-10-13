@@ -533,6 +533,27 @@ def main():
                 ui.emu.mu.mem_write(int(addr, 16), bytes.fromhex(val))
                 print(f"{tok}")
                 continue
+            if tok.startswith("hit:"):                  # hit:SEG:OFF[,SEG:OFF..] count executions from now on
+                from unicorn import UC_HOOK_CODE
+                if not hasattr(ui, "hits"):
+                    ui.hits = {}
+                for so in tok[4:].split(","):
+                    sg, of = (int(x, 16) for x in so.split(":"))
+                    a_ = (sg << 4) + of
+                    ui.hits[so] = 0
+                    ui.emu.mu.hook_add(UC_HOOK_CODE, lambda uc, ad, sz, k: ui.hits.__setitem__(k, ui.hits[k] + 1),
+                                       so, a_, a_)
+                ui.emu.mu.ctl_flush_tb()
+                continue
+            if tok == "hits":
+                print("hits:", getattr(ui, "hits", {}), flush=True)
+                continue
+            if tok.startswith("peek:"):                 # peek:LINHEX,NHEX -> hex dump
+                a_, n_ = (int(x, 16) for x in tok[5:].split(","))
+                b_ = bytes(ui.emu.mu.mem_read(a_, n_))
+                for i in range(0, n_, 16):
+                    print(f"  {a_ + i:05x}: {b_[i:i + 16].hex(' ')}", flush=True)
+                continue
             if tok == "where":                          # where: sample CS:IP over a while (find a busy loop)
                 from collections import Counter
                 hits = Counter()

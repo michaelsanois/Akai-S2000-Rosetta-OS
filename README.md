@@ -68,8 +68,8 @@ room to grow (modulated feedback taps are next).
 - **Menus**: EDIT (program), REC → EDIT (sample) and TUNE (global) open a menu like `EDIT PROGRAM 1/8` /
   `>SAMPLES+ZONES`. DATA wheel or PAGE picks a group, the right button goes in, the left button goes out.
   Inside a group, PAGE loops through that group's pages and GROUP jumps to the next group.
-- **REC**: opens on the input meter. Right button = ARM (then GO; the take starts at the threshold, or press the
-  left button to start now). Left button = SETUP (name, length, mono/stereo, pitch, threshold); home = back to
+- **REC**: opens on the input meter. Right button = ARM: the take starts when the sound passes the threshold,
+  or press GO (left button) or REC to start now. Left button = SETUP (name, length, mono/stereo, pitch, threshold); home = back to
   the meter. After the take you land on the sample select page.
 - **Home key**: back one level (page → menu → HOME).
 - **PLAY**: auditions the current sample when no program is loaded.
