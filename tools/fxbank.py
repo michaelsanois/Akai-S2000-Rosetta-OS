@@ -1,10 +1,14 @@
-"""Rosetta FX bank -> build/fx_presets.inc (NASM) for src/rosetta_menu.asm.
+"""Rosetta FX bank -> build/hi_fx.inc (NASM), assembled into the hi code (src/rosetta_hi.asm, 0.22+); the
+menu code (src/rosetta_fx.asm) reads it through `fxhdr`, which the hi code points at `hifx` when it loads.
 
 Engine model (measured 2026-10-13, see README): one 65536-sample line @ 44.1 kHz, 30 taps on reg A
 functions 1-10, 12-31. Tap = gain word (Q15, low 2 bits = route: 1 = L out, 0 = R out, 3 = feedback)
 + length word (2 - delay in samples). Static taps are written once; LFO slots drive a pair of taps
 (even/odd delay) whose gains crossfade for fractional delays (chorus / flanger), updated every 2 ms tick.
 
+Header hifx: dw preset_ptrs, fx_short, sintab (all as MENU_SEG offsets: + LOREL), db NPRESETS.
+rev_tab: 4 bytes per preset for the REVERSE engine (src/rosetta_rev.asm): db on, chunk slices (512 samples,
+  scaled by the page's TIME %), use the page's FEEDBACK as reverse feedback, octave up.
 Preset record: name[8], db fbmax (FEEDBACK % limit: loop sum stays < 0.97; 0 = no feedback), nstatic, nmod,
   nstatic x (db fn, dw gainword, dw lenword-delay)   [delay in samples, the asm turns it into 2 - delay]
   nmod    x (db fnE, fnO, route, dw gain, center, depth, inc, phase0)
@@ -45,9 +49,10 @@ def from_json(name):
 
 
 def bank():
-    """(name, static taps [(fn, gain, route, delay)], mod slots)."""
+    """(name, static taps [(fn, gain, route, delay)], mod slots[, reverse (slices, feedback default or None,
+    octave)])."""
     T1, T2 = ms(375), ms(300)
-    return [
+    stock = [
         ("OFF", [], []),
         ("ROOM", from_json("room"), []),
         ("HALL", from_json("hall"), []),
@@ -58,6 +63,17 @@ def bank():
                         mod(5, 6, L, 0.4, 22, 1.8, 0.43, 180), mod(7, 8, R, 0.4, 24, 1.8, 0.43, 270)]),
         ("FLANGER", [], [mod(1, 2, L, 0.75, 2.6, 2.2, 0.2, 0), mod(3, 4, R, 0.75, 2.6, 2.2, 0.2, 30),
                          mod(5, 6, FB, 0.55, 2.6, 2.2, 0.2, 0)]),
+    ]
+    hall = from_json("hall")
+    return [p + (None,) for p in stock] + [
+        # reverse delays: each chunk of the delay line plays back flipped (TIME scales the chunk)
+        ("REVERSE", [], [], (34, None, 0)),       # 0.39 s
+        ("REV SHRT", [], [], (14, None, 0)),      # 0.16 s
+        ("REV LONG", [], [], (63, None, 0)),      # 0.73 s
+        ("REV ECHO", [], [], (34, 60, 0)),        # repeats, each one flipped again (FEEDBACK)
+        ("REV OCT", [], [], (34, None, 1)),       # an octave up, twice
+        ("REV HALL", hall, [], (40, None, 0)),    # the hall's tail flipped: swells into the note
+        ("REV PING", [(1, 0.5, L, T2), (2, 0.5, R, 2 * T2), (3, 0.45, FB, 2 * T2)], [], (34, None, 0)),
     ]
 
 
@@ -70,14 +86,24 @@ def fbmax(static, mods):
 
 
 def nasm(presets):
-    out = [f"NPRESETS equ {len(presets)}", "preset_ptrs:"]
-    out += [f"        dw fxp{i}" for i in range(len(presets))]
-    for i, (name, static, mods) in enumerate(presets):
+    out = [f"NPRESETS equ {len(presets)}",
+           "hifx:   dw preset_ptrs + LOREL, fx_short + LOREL, sintab + LOREL",
+           "        db NPRESETS",
+           "rev_tab:"]
+    for name, static, mods, rev in presets:
+        if rev:
+            out.append(f"        db 1, {rev[0]}, {1 if rev[1] else 0}, {rev[2]}   ; {name}")
+        else:
+            out.append(f"        db 0, 0, 0, 0             ; {name}")
+    out.append("preset_ptrs:")
+    out += [f"        dw fxp{i} + LOREL" for i in range(len(presets))]
+    for i, (name, static, mods, rev) in enumerate(presets):
         assert len(name) <= 8, name
         used = [fn for fn, *_ in static] + [f for m in mods for f in (m["fne"], m["fno"])]
         assert len(used) == len(set(used)) and all(f in FNS for f in used), name
         assert len(mods) <= 4
-        out.append(f"fxp{i}:   db '{name:<8}', {fbmax(static, mods)}, {len(static)}, {len(mods)}")
+        fbm = rev[1] if rev and rev[1] else fbmax(static, mods)   # REV ECHO: FEEDBACK = reverse repeats
+        out.append(f"fxp{i}:   db '{name:<8}', {fbm}, {len(static)}, {len(mods)}")
         for fn, g, r, d in static:
             assert 2 <= d <= 65535
             out.append(f"        db {fn}\n        dw {gw(g, r):#06x}, {d}")
@@ -85,9 +111,10 @@ def nasm(presets):
             q = int(round(m["gain"] * 32767))
             out.append(f"        db {m['fne']}, {m['fno']}, {3 if m['route'] == FB else m['route']}")
             out.append(f"        dw {q & 0xFFFF:#06x}, {m['center']}, {m['depth']}, {m['inc']}, {m['phase']:#06x}")
-    short = {"PINGPONG": "PING", "CHORUS": "CHORS", "FLANGER": "FLANG"}
+    short = {"PINGPONG": "PING", "CHORUS": "CHORS", "FLANGER": "FLANG", "REVERSE": "REV", "REV SHRT": "RVSHT",
+             "REV LONG": "RVLNG", "REV ECHO": "RVECH", "REV OCT": "RVOCT", "REV HALL": "RVHAL", "REV PING": "RVPNG"}
     out.append("fx_short:                      ; 5-char names for HOME line 2")
-    for name, _, _ in presets:
+    for name, *_ in presets:
         sn = short.get(name, name)[:5]
         out.append(f"        db '{sn.center(5)}'")
     out.append("sintab:")
@@ -97,7 +124,7 @@ def nasm(presets):
 
 
 def write_inc(build_dir):
-    p = os.path.join(build_dir, "fx_presets.inc")
+    p = os.path.join(build_dir, "hi_fx.inc")
     open(p, "w").write(nasm(bank()))
     return p
 

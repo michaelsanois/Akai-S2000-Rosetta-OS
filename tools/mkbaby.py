@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.21"
+VERSION = "0.22"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -74,11 +74,30 @@ def build_menu(build_dir):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import fxbank
     fxbank.write_inc(build_dir)                 # FX presets + sine table (tools/fxbank.py)
-    blob = nasm_blob(build_dir, "rosetta_menu.asm", [f"-DLOAD_SEG={LOAD_SEG:#x}"])
+    mapf = os.path.join(build_dir, "rosetta_menu.map")
+    pre = os.path.join(build_dir, "lo_map_pre.inc")
+    with open(pre, "w") as f:
+        f.write(f"[map symbols {mapf}]\n")
+    blob = nasm_blob(build_dir, "rosetta_menu.asm", [f"-DLOAD_SEG={LOAD_SEG:#x}", "-P", pre])
+    lo_syms(build_dir, mapf)
     lo = lin(MENU_SEG, 0)
     assert JUNK_LO <= lo and lo + MENU_SPAN <= JUNK_HI and len(blob) <= MENU_SPAN
     assert lo >= lin(DRAGON_SEG, 0) + DRAGON_SPAN, "menu code overlaps the dragon"
     return blob
+
+
+def lo_syms(build_dir, mapf):
+    """build/lo_syms.inc: LO_<label> equ <offset in MENU_SEG> for every global lo label (for the hi code, which
+    patches and calls lo at run time)."""
+    import re
+    out = []
+    for line in open(mapf):
+        m = re.match(r"^\s*([0-9A-Fa-f]+)\s+([0-9A-Fa-f]+)\s+([A-Za-z_]\w*)\s*$", line)
+        if m:
+            out.append(f"LO_{m.group(3)} equ 0x{int(m.group(1), 16):04X}")
+    assert any(o.startswith("LO_fxsend ") for o in out), "no lo symbols parsed from the NASM map"
+    with open(os.path.join(build_dir, "lo_syms.inc"), "w") as f:
+        f.write("\n".join(out) + "\n")
 
 
 def build_dragon(build_dir):
@@ -188,7 +207,10 @@ def build_hi(build_dir):
     """Assemble src/rosetta_hi.asm, padded to whole 1 KB blocks."""
     hi_tables(build_dir)
     vw = "0x%02d%02d" % tuple(int(x) for x in VERSION.split("."))  # 0.20 -> 0x0020, like VERSION_W
-    blob = nasm_blob(build_dir, "rosetta_hi.asm", [f"-DHI_VERSION={vw}"])
+    pre = os.path.join(build_dir, "hi_map_pre.inc")
+    with open(pre, "w") as f:
+        f.write("[map symbols " + os.path.join(build_dir, "rosetta_hi.map") + "]" + chr(10))
+    blob = nasm_blob(build_dir, "rosetta_hi.asm", [f"-DHI_VERSION={vw}", "-P", pre])
     assert blob[:4] == b"RSHI" and len(blob) <= 0x10000
     return blob + bytes(-len(blob) % 1024)
 

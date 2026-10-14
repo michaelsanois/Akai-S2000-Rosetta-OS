@@ -206,6 +206,11 @@ class S2K:
             return v
         if port == 0xA0:
             return 0x0000      # L7A1045 data/status: idle (status reg 0x180 bit0 = busy)
+        if port in (0x82, 0x84) and self.ports.get(0x80) == 0x0A00:
+            # delay line write position (reg A fn 0, read by 2345:3294): 44.1k/s of emulated time
+            # (TICK_BLOCKS blocks = one 0.511 ms OS tick = 22.5 samples)
+            pos = (self.nblocks * 225 // (10 * TICK_BLOCKS)) & 0xFFFF
+            return (pos >> 4) if port == 0x84 else (pos & 0xF) << 12
         if port == 0x20:
             return self.fdc.msr()
         if port == 0x22:

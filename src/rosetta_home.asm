@@ -171,7 +171,8 @@ home_text:
         mov al, [cs:fxon]
         mov ah, 5
         mul ah
-        mov si, fx_short
+        mov si, [cs:fxhdr]
+        mov si, [cs:si + 2]   ; fx_short
         add si, ax
         mov cx, 5
         call cpyn

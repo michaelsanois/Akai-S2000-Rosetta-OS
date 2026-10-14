@@ -35,7 +35,8 @@ fx_entry:
         je .show
         mov al, [cs:fxon]
         inc al
-        cmp al, NPRESETS
+        call fxcnt
+        cmp al, ah
         jb .s
         xor al, al
 .s:     call fx_settype
@@ -109,15 +110,16 @@ fx_change:
         mov bl, [cs:fcur]
         cmp bl, F_TYPE
         jne .p
+        call fxcnt            ; ah = number of presets
         mov cl, [cs:fxon]
-        add al, cl            ; wrap into 0..NPRESETS-1
+        add al, cl            ; wrap into 0..n-1
 .w1:    or al, al
         jns .w2
-        add al, NPRESETS
+        add al, ah
         jmp .w1
-.w2:    cmp al, NPRESETS
+.w2:    cmp al, ah
         jb .w3
-        sub al, NPRESETS
+        sub al, ah
         jmp .w2
 .w3:    cmp al, cl
         je fx_show
@@ -188,7 +190,15 @@ presetptr:                    ; si = record of preset [cs:fxon]
         mov bl, [cs:fxon]
         xor bh, bh
         shl bx, 1
-        mov si, [cs:preset_ptrs+bx]
+        mov si, [cs:fxhdr]
+        mov si, [cs:si]
+        mov si, [cs:si+bx]
+        ret
+
+fxcnt:  push bx               ; ah = number of FX presets
+        mov bx, [cs:fxhdr]
+        mov ah, [cs:bx + 6]
+        pop bx
         ret
 
 fbmax:  push si               ; ax = the preset's FEEDBACK limit (0 = no feedback taps)
@@ -522,7 +532,11 @@ lfo_run:
         mov bl, [cs:si + M_PHASE + 1]
         xor bh, bh
         shl bx, 1
-        mov ax, [cs:sintab + bx]
+        push si
+        mov si, [cs:fxhdr]
+        mov si, [cs:si + 4]
+        mov ax, [cs:si + bx]        ; sintab (in the FX bank)
+        pop si
         imul word [cs:si + M_DEPTH] ; dx:ax = sin (Q14) * depth (samples)
         mov bx, ax
         shr bx, 6
@@ -583,4 +597,11 @@ fmax:     dw 0, 99, 200, 0, 400           ; FB max is per preset (fbmax)
 fxbuf:    times 32 db ' '
 mslots:   times 4 * MSLOT db 0
 
-%include "fx_presets.inc"
+; FX bank: in the hi code (tools/fxbank.py -> build/hi_fx.inc), which sets fxhdr to it when it loads
+; (MENU_SEG offsets past 0x1600 are hi RAM). Without it: OFF only.
+fxhdr:    dw fx_fb
+fx_fb:    dw fb_ptrs, fb_short, fb_short  ; preset_ptrs, fx_short, sintab
+          db 1
+fb_ptrs:  dw fb_off
+fb_off:   db 'OFF     ', 0, 0, 0
+fb_short: db ' OFF '

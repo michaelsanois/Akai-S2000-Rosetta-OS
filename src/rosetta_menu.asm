@@ -91,7 +91,7 @@ fxsend: cmp byte [cs:fxon], 0
 SX_STOCK  equ 0x63CB          ; Akai SysEx handler 0FE4:63CB
 SX_STUB   equ 0xF6B2          ; 0FE4:F6B2 pad stub -> sx_byte
 SX_MAX    equ 420
-VERSION_W equ 0x0021          ; reply to PING
+VERSION_W equ 0x0022          ; reply to PING
 
 sx_start:
         mov word [0x7DE6], SX_STOCK
@@ -154,7 +154,8 @@ sx_exec:
         je .fxsel
         ret
 .fxsel: call nib2             ; 08 nn: select FX preset nn (same as stepping to it with EFFECTS)
-        cmp al, NPRESETS
+        call fxcnt
+        cmp al, ah
         jae .fsr
         call fx_settype
         xor al, al

@@ -14,6 +14,7 @@
 ;                   127 = down ~2000 log steps, highs -30 dB+; the top ~800 steps of an open filter are inaudible)
 ;   CC 24 LFO RATE  0.03-10 Hz
 ;   CC 25 LFO SPRD  per-voice LFO phase spread (0 = all voices together, 127 = all different)
+; REVERSE delay (0.22, src/rosetta_rev.asm): CC 26 level (0 = off), 27 time, 28 feedback, 29 octave up.
 ; Hooks: 2345:5611 (every pitch write: note-on + the ~15 ms update, pitch = semitone * 256) and 2345:59CD
 ; (every cutoff target, log 0-FFF, the chip glides to it), 2B9D:01AE (MIDI CC in, any channel).
         cpu 186
@@ -23,10 +24,12 @@
 HI_VERSION equ 0
 %endif
 HI_SEG    equ 0x4000
+MENU_SEG  equ 0x3EA0          ; the menu code (lo): its offsets past LOREL are this hi RAM
+LOREL     equ (HI_SEG - MENU_SEG) * 16
 POPUP     equ 0x8FE0          ; OS popup text buffer in segment 0 (2 x 16 chars + FF)
 NVOICE    equ 32
 CC_FIRST  equ 20
-NCC       equ 6
+NCC       equ 10              ; CC 20-29
 RETF_2345 equ 0x27CB          ; a retf in segment 2345 (near-call trick)
 
         db "RSHI"             ; +0 magic
@@ -37,11 +40,14 @@ RETF_2345 equ 0x27CB          ; a retf in segment 2345 (near-call trick)
         jmp near cut_tgt      ; +F  from 2345:59CD
         jmp near cc_in        ; +12 from 2B9D:01AE
         dw patches            ; +15 for tools/hiload.py
+        dw mbox               ; +17 lab mailbox (reverse-delay research, run from the tick)
+        dw par                ; +19 the CC 20-29 values (lab)
 
 hi_init:
         pusha
         push es
         call apply
+        call hi_setup
         mov byte [cs:inited], 1
         mov si, msg_ok
         cmp byte [cs:pfail], 0
@@ -51,6 +57,15 @@ hi_init:
         pop es
         popa
         retf
+
+; the menu code's FX page uses our FX bank (tools/fxbank.py -> hi_fx.inc) from now on
+hi_setup:
+        push es
+        mov ax, MENU_SEG
+        mov es, ax
+        mov word [es:LO_fxhdr], hifx + LOREL
+        pop es
+        ret
 
 ; patch table: dw seg, off / db n / n stock bytes / n new bytes; seg 0 ends it
 apply:  mov si, patches
@@ -194,7 +209,21 @@ hi_tick:
         jne .go
         mov byte [cs:inited], 1   ; sent in over SysEx: hook the OS ourselves
         call apply
-.go:        call 0x2345:0x0A47    ; al = tick
+        call hi_setup
+.go:    cmp byte [cs:mbox], 0
+        je .nomb
+        call lab_cmd
+.nomb:  cmp word [cs:hammer], 0
+        je .noh
+        dec word [cs:hammer]      ; lab: one 256-word sample-RAM read per main-loop pass (voice glitch test)
+        mov word [0x78E4], 0
+        mov word [0x78E6], 0
+        mov cx, 256
+        mov dx, LABBUF
+        xor di, di
+        call 0x2345:0x1AA0
+.noh:   call rev_run
+        call 0x2345:0x0A47    ; al = tick
         mov ah, al
         sub ah, [cs:lasttick]
         jz .out
@@ -309,6 +338,79 @@ hi_tick:
         popa
         retf
 
+; ---------------------------------------------------------------------------------------------
+; lab mailbox (poked over SysEx, run here in the main loop): cmd 1 = read [count] words of sample RAM from
+; [addr] into 4100:0000, 2 = write them back from there, 3 = delay-line write position -> result.
+; t0/t1 = OS tick before/after (0.511 ms each).
+LABBUF    equ 0x4100
+lab_cmd:
+        call 0x2345:0x0A47
+        mov [cs:mb_t0], al
+        mov al, [cs:mbox]
+        cmp al, 3
+        je .pos
+        cmp al, 4
+        je .scan
+        cmp al, 5
+        jne .c6
+        mov ax, [cs:mb_count]     ; cmd 5: hammer for [count] main-loop passes
+        mov [cs:hammer], ax
+        jmp .done
+.c6:
+        mov ax, [cs:mb_addr]
+        mov [0x78E4], ax          ; OS sample-RAM DMA pointer (DS = 0 here)
+        mov ax, [cs:mb_addr + 2]
+        mov [0x78E6], ax
+        mov cx, [cs:mb_count]
+        mov dx, LABBUF
+        xor di, di
+        xor si, si
+        cmp byte [cs:mbox], 1
+        jne .wr
+        call 0x2345:0x1AA0        ; sample RAM -> DX:DI, cx words
+        jmp .done
+.wr:    call 0x2345:0x1AC8        ; DX:SI -> sample RAM
+        jmp .done
+.pos:   call 0x2345:0x3294        ; ax = delay line write position (reg A fn 0)
+        mov [cs:mb_res], ax
+        jmp .done
+.scan:  ; cmd 4: [count] chunks of 2048 words from [addr]: peak |sample| >> 8 of each -> 4200:0000.. (1 byte each)
+        mov ax, [cs:mb_addr]
+        mov [0x78E4], ax
+        mov ax, [cs:mb_addr + 2]
+        mov [0x78E6], ax
+        xor bp, bp
+.sc:    cmp bp, [cs:mb_count]
+        jae .done
+        mov cx, 2048
+        mov dx, LABBUF
+        xor di, di
+        call 0x2345:0x1AA0        ; advances [78E4]:[78E6]
+        push ds
+        mov ax, LABBUF
+        mov ds, ax
+        xor si, si
+        mov cx, 2048
+        xor bx, bx
+.pk:    lodsw
+        or ax, ax
+        jns .p1
+        neg ax
+.p1:    cmp ax, bx
+        jbe .p2
+        mov bx, ax
+.p2:    loop .pk
+        pop ds
+        mov ax, 0x4200
+        mov es, ax
+        mov [es:bp], bh
+        inc bp
+        jmp .sc
+.done:  call 0x2345:0x0A47
+        mov [cs:mb_t1], al
+        mov byte [cs:mbox], 0
+        ret
+
 ; ax = 16-bit random (xorshift)
 rnd:    mov ax, [cs:seed]
         mov dx, ax
@@ -345,6 +447,13 @@ popup:  push es
         ret
 
 ticks:    dw 0
+mbox:     db 0                ; command (0 = idle)
+mb_t0:    db 0
+mb_addr:  dd 0
+mb_count: dw 0
+mb_t1:    db 0
+mb_res:   dw 0
+hammer:   dw 0
 pfail:    db 0
 inited:   db 0
 lasttick: db 0
@@ -365,4 +474,7 @@ dtgt:     times NVOICE dw 0   ; drift target (Q15)
 msg_ok:   db "ROSETTA+ READY  SYNTH CC 20-25  "
 msg_pf:   db "ROSETTA+ READY  PATCH MISMATCH! "
 
+%include "rosetta_rev.asm"
+%include "hi_fx.inc"
+%include "lo_syms.inc"
 %include "hi_tables.inc"      ; hsin (256 x Q14), dtab (32 x signed detune spread), from mkbaby.py
