@@ -490,6 +490,7 @@ lfo_hook:
         call fx_poll
         call pm_poll
         call rec_poll
+        call LOAD_SEG:0x0000  ; hi code: loads it on the first tick, then runs its tick (src/rosetta_load.asm)
         pop ax
         push ax
         cmp byte [cs:nmods], 0

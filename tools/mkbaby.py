@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.18"
+VERSION = "0.19"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -25,6 +25,8 @@ DRAGON_SEG = 0x3E20                   # blob at linear 0x3E200, private stack up
 DRAGON_SPAN = 0x800
 MENU_SEG = 0x3EA0                     # permanent Rosetta code at linear 0x3EA00 (src/rosetta_menu.asm), right after the dragon
 MENU_SPAN = 0x1600                    # up to the end of the junk (0x40000)
+LOAD_SEG = 0x3E02                     # hi-code loader (src/rosetta_load.asm) in the junk before the dragon
+LOAD_SPAN = 0x1E0                     # up to the dragon (0x3E200)
 BANNER = (" JSW ROSETTA OS ", f"  S2000  v{VERSION}  ")
 
 AKAI_CHARS = "0123456789 ABCDEFGHIJKLMNOPQRSTUVWXYZ#+-."
@@ -72,7 +74,7 @@ def build_menu(build_dir):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import fxbank
     fxbank.write_inc(build_dir)                 # FX presets + sine table (tools/fxbank.py)
-    blob = nasm_blob(build_dir, "rosetta_menu.asm")
+    blob = nasm_blob(build_dir, "rosetta_menu.asm", [f"-DLOAD_SEG={LOAD_SEG:#x}"])
     lo = lin(MENU_SEG, 0)
     assert JUNK_LO <= lo and lo + MENU_SPAN <= JUNK_HI and len(blob) <= MENU_SPAN
     assert lo >= lin(DRAGON_SEG, 0) + DRAGON_SPAN, "menu code overlaps the dragon"
@@ -161,20 +163,27 @@ PATCHES = [
 ]
 
 
-# High code (0.18 experiment): CPU RAM 0x40000-0x4FFFF is never written by the OS (emulator memuse map,
-# no segment 0x4xxx in the code; 0x50000 is its disk buffer). The OS file grows past 256 KB so the boot
-# loader (hopefully) loads the extra blocks there too. For now: a test pattern, read back over SysEx.
+# High code (0.19): CPU RAM 0x40000-0x4FFFF is never written by the OS (emulator memuse map, no segment 0x4xxx
+# in the code, and on hw it still held power-up junk after boot). The boot ROM loads only the first 256 KB of
+# the OS file (0.18 test), so the hi code goes on the floppy right after it (chained into the OS file) and
+# src/rosetta_load.asm reads it in on the first main-loop tick.
 HI_SEG = 0x4000
-HI_SPAN = int(os.environ.get("HI_SPAN", "0x10000"), 0)
+HI_BLOCK = OS_BLOCK + OS_SIZE // 1024
 
 
-def hi_blob():
-    out = bytearray()
-    for k in range(HI_SPAN // 1024):
-        blk = bytearray((i * 7 + k) & 0xFF for i in range(1024))
-        blk[:16] = f"ROSETTA HI {k:3d}".encode().ljust(16)
-        out += blk
-    return bytes(out)
+def build_hi(build_dir):
+    """Assemble src/rosetta_hi.asm, padded to whole 1 KB blocks."""
+    vw = "0x%02X%02X" % tuple(int(x) for x in VERSION.split("."))
+    blob = nasm_blob(build_dir, "rosetta_hi.asm", [f"-DHI_VERSION={vw}"])
+    assert blob[:4] == b"RSHI" and len(blob) <= 0x10000
+    return blob + bytes(-len(blob) % 1024)
+
+
+def build_loader(build_dir, nblk):
+    blob = nasm_blob(build_dir, "rosetta_load.asm", [f"-DHI_BLOCK={HI_BLOCK}", f"-DHI_NBLK={nblk}"])
+    lo = lin(LOAD_SEG, 0)
+    assert JUNK_LO <= lo and lo + LOAD_SPAN <= lin(DRAGON_SEG, 0) and len(blob) <= LOAD_SPAN, len(blob)
+    return blob
 
 
 def extend_os(disk, blob):
@@ -201,7 +210,8 @@ def extend_os(disk, blob):
     disk[lo:lo + len(blob)] = blob
     new = size + len(blob)
     disk[ent + 17:ent + 20] = bytes([new & 0xFF, new >> 8 & 0xFF, new >> 16])
-    print(f"  OS file {size:#x} -> {new:#x}: {len(blob)} B at blocks {last + 1}-{last + nb} (loads at {HI_SEG:04x}:0000?)")
+    assert last + 1 == HI_BLOCK
+    print(f"  OS file {size:#x} -> {new:#x}: hi code {len(blob)} B at blocks {last + 1}-{last + nb} (loaded to {HI_SEG:04x}:0000)")
 
 
 def main():
@@ -223,9 +233,13 @@ def main():
     lo = lin(MENU_SEG, 0)
     osb[lo:lo + len(menu)] = menu
     print(f"  {lo:#07x}  menu blob {len(menu)} B (MENU_SEG {MENU_SEG:04x}:0000)")
+    hi = build_hi(os.path.dirname(os.path.abspath(prefix)))
+    ld = build_loader(os.path.dirname(os.path.abspath(prefix)), len(hi) // 1024)
+    lo = lin(LOAD_SEG, 0)
+    osb[lo:lo + len(ld)] = ld
+    print(f"  {lo:#07x}  loader blob {len(ld)} B (LOAD_SEG {LOAD_SEG:04x}:0000, {len(hi) // 1024} KB from block {HI_BLOCK})")
     disk[os_off:os_off + OS_SIZE] = osb
-    if HI_SPAN:
-        extend_os(disk, hi_blob())
+    extend_os(disk, hi)
     if os.environ.get("TESTKIT", "1") == "1":       # CLICK / NOISE BURST / BEEP 1K on the boot floppy
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import testkit

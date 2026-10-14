@@ -102,6 +102,9 @@ def main():
         else:
             E.S2K._block_orig(self, uc, address, size, ud)
     E.S2K._block = _block
+    img = os.path.splitext(sys.argv[1])[0] + ".img"
+    if "S2K_DISK" not in os.environ and os.path.exists(img):
+        os.environ["S2K_DISK"] = img      # the build's own floppy in the drive (hi code); S2K_DISK= for none
     ui = UI(os_bin)
     ui.emu._block_impl = None
 

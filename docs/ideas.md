@@ -23,6 +23,23 @@ The menu blob is full (5.6 KB at 0x3EA00). Anything big needs a loader: at boot,
 Rosetta disk into free CPU RAM (map free RAM with `s2k_ui.py memuse`), or reclaim the factory demo
 songs/setups (user OK'd).
 
+### 0.18 hardware result (2026-10-13)
+- The boot ROM loads a fixed 256 KB and ignores the bigger size field. The 4000:0000 peek showed power-up junk,
+  not "ROSETTA HI", and the 3EA0 jump table read back fine. 0x40000-0x4FFFF is never written on hw: 64 KB free.
+- **Plan: a runtime loader.** OS raw floppy read = far call `1F50:00BB`: CL = cyl, DH = head, DL = sector (1-based),
+  CH = N (3 = 1 KB), BX = bytes, ES:BP = destination, AL = 0 on success. It stays on one track (split the read
+  per track), sets its own error frame ([8063]), skips the Akai directory read ([8060] bit 0x40), and has a
+  ~4.4 s motor spin-up on first access (0FE4:A63B `cmp al,9`; Gotek could use less). Block b = cyl b/20,
+  head (b%20)/10, sector b%10+1.
+- Loader home: free junk 0x3E01B-0x3E200 (480 B, before the dragon), e.g. LOAD_SEG 0x3E02. It's called from
+  lfo_hook (`call LOAD_SEG:0`, 5 B, first tick loads; state 0/1/2/3), checks a magic at 4000:0000, then calls hi
+  init/tick. Popup text must sit in segment 0 (copy it to 0:8FE0, then `call 0FE4:0D4E` = timed popup, DS = 0).
+- The dragon area (0x3E200 + 550 B .. stack) is also free after boot: ~1.7 KB more lo space overall.
+- FDC: IR3 = int 0x0B = 0000:80F2 (`or [8060],20h`), unmasked by 2345:09BF. DMA ch1 = C001/C004/C006/C002.
+- Emulator: tools/s2k_emu.py takes a disk image (env S2K_DISK, s2k_ui uses the .img next to the .bin): read data via DMA ch1
+  + IR3, sense interrupt with nothing pending = ready change (the OS reads 2 bytes). With a disk the OS reads the
+  catalogue at boot. 0.19 (emulator PASS): the loader reads the hi code, READY popup, hi tick runs, menus OK.
+
 ## Ideas, coolest-per-effort first
 | # | Idea | How | Effort |
 |---|---|---|---|
@@ -38,3 +55,23 @@ songs/setups (user OK'd).
 | 10 | **Flash rompler** | 2 x FMX016 (DIY or bought) = 32 MB of samples that need no loading (chip ROM space) + 32 MB RAM for sampling | hw + med |
 | 11 | **Pad / pattern mode** | 16 pads from a MIDI controller, note repeat, swing, the SMF player grown into a pattern sequencer | big |
 | 12 | **Stereo hold-to-record** | finish 0.17's stop-on-release for stereo takes | small |
+
+## Synth layer (user, 2026-10-13: "we don't need many true voices, fake LA, fake analog, wavetable with a
+## software backend so it's easy to sequence")
+Principle: the PC does the heavy DSP offline (render waves, tables, multisamples), the S2000 plays them with
+its 8-point sinc voices, and Rosetta moves the voice registers live from the 2 ms tick. 1 note = 1 voice
+wherever possible.
+
+| Idea | How (1 voice unless said) |
+|---|---|
+| **Fake LA** (D-50/D-110 style) | one sample = PCM attack spliced onto a single-cycle loop; chip filter env = TVF sweep. Attacks from the user's own D-110/U-110 dumps (personal use) |
+| **Fake analog** | single-cycle saw/square/tri; random pitch drift + per-note detune from the tick; chip resonant LP + env; PWM = a scanned PWM table |
+| **Wavetable** | table = N single cycles in a row; position = the voice's loop-start address, moved by LFO / env / velocity / mod wheel / CC (PPG-style steps) |
+| **Wave sequencing** (Wavestation) | per note, step the start/loop through a list of waves over time |
+| **Vector** (Prophet VS) | 4 voices per note, levels from a CC x/y |
+| **Granular** | short loops with jittered start addresses, voices as grains |
+| **Unison / supersaw** | 2-4 detuned voices, pan spread (costs voices: use for pads) |
+| **Auto-sampler** (PC) | MIDI notes out to any synth (D-110, U-110, GP-16, softsynths), record via the OCTA, trim/loop, build Akai programs (akai_tool) -> SCSI2SD |
+| **Wave lab** (PC) | draw/import/additive/FM-render single cycles and tables, send over SysEx or a disk image |
+| **Easy to sequence** | every synth/FX param on a MIDI CC (NRPN for fine), program change = instant patch, MIDI clock sync for LFOs/arp/echo; PC editor over SysEx; Cubase bridge integration |
+| **SYNTH tab** | a new area menu per program: OSC (wave/table/pos), FILTER (cutoff/reso/env/LFO), AMP, MOD (LFO/env -> pos/pitch/cutoff), UNISON, FX send |

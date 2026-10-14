@@ -8,6 +8,7 @@ Fake devices (grown as the boot needs them):
 Prints the LCD and the hottest code blocks when it stops, so a stuck boot shows where it waits.
 """
 import collections
+import os
 import sys
 
 from unicorn import UC_ARCH_X86, UC_HOOK_BLOCK, UC_HOOK_INSN, UC_MODE_16, Uc, UcError
@@ -62,14 +63,25 @@ class LCD:
 
 
 class FDC765:
-    """Minimal uPD765 on 0x20 (MSR) / 0x22 (data). Empty drive: commands complete with 'not ready'."""
+    """Minimal uPD765 on 0x20 (MSR) / 0x22 (data). Without a disk image, commands complete with 'not ready'.
+    With one (raw Akai HD image: 1 KB blocks, block = C*20 + H*10 + R-1), read data moves the sector(s) by
+    DMA channel 1 (done by S2K, see `pending_read`) and every seek/recalibrate/read raises IR3."""
     CMDLEN = {0x03: 3, 0x04: 2, 0x07: 2, 0x08: 1, 0x0F: 3, 0x0A: 2, 0x0D: 6, 0x06: 9, 0x05: 9, 0x02: 9,
               0x11: 9, 0x19: 9, 0x1D: 9, 0x09: 9, 0x0C: 9, 0x10: 1, 0x12: 2, 0x13: 4, 0x0E: 1}
 
-    def __init__(self):
+    def __init__(self, disk=None):
         self.cmd, self.res = [], []
         self.pcn = 0
         self.int_pending = False
+        self.disk = disk
+        self.irq = False              # IR3 request for S2K to deliver
+        self.pending_read = None      # (C, H, R, N, EOT) for S2K to run through DMA channel 1
+        self.reads = 0
+
+    def __getstate__(self):           # snapshots: leave the (big, constant) image out
+        d = dict(self.__dict__)
+        d["disk"] = None
+        return d
 
     def msr(self):
         return 0xC0 if self.res else 0x80
@@ -83,17 +95,28 @@ class FDC765:
         c, self.cmd = self.cmd, []
         drv = (c[1] & 3) if len(c) > 1 else 0
         if op == 0x08:                       # sense interrupt
-            self.res = [0x20 | drv, self.pcn] if self.int_pending else [0x80]
+            if self.int_pending:
+                self.res = [0x20 | drv, self.pcn]
+            elif self.disk is not None:      # nothing pending: a drive-ready change (the 72065 polls after
+                self.res = [0xC0, self.pcn]  # a reset); the OS always reads 2 bytes here (0FE4:A51A)
+            else:
+                self.res = [0x80]
             self.int_pending = False
         elif op in (0x07, 0x0F):             # recalibrate / seek
             self.pcn = c[2] if op == 0x0F else 0
             self.int_pending = True
-        elif op == 0x04:                     # sense drive status: ready=0, track0, two-side
-            self.res = [0x08 | (0x10 if self.pcn == 0 else 0) | drv]
+            self.irq = self.disk is not None
+        elif op == 0x04:                     # sense drive status: ST3 bit 3 = no disk on this board
+            if self.disk is not None:
+                self.res = [0x20 | (0x10 if self.pcn == 0 else 0) | (c[1] & 7)]
+            else:
+                self.res = [0x08 | (0x10 if self.pcn == 0 else 0) | drv]
         elif op == 0x03:                     # specify
             pass
         elif op in (0x10, 0x0E):             # version / dumpreg
             self.res = [0x80] if op == 0x10 else [0] * 10
+        elif op == 0x06 and self.disk is not None:   # read data: S2K moves the bytes, then results
+            self.pending_read = (c[2], c[3], c[4], c[5], c[6], c[1])
         else:                                # read/write/format/read id: abnormal term, not ready
             self.res = [0x48 | drv, 0x00, 0x00, c[2] if len(c) > 2 else 0, 0, 1, 2]
 
@@ -125,12 +148,16 @@ class ICU8259:
 
 
 class S2K:
-    def __init__(self, os_bin):
+    def __init__(self, os_bin, disk=None):
         self.mu = Uc(UC_ARCH_X86, UC_MODE_16)
         self.mu.mem_map(0, 0x100000)
         self.mu.mem_write(0, os_bin)
         self.lcd = LCD()
-        self.fdc = FDC765()
+        if disk is None and os.environ.get("S2K_DISK"):
+            disk = open(os.environ["S2K_DISK"], "rb").read()   # raw disk image in the floppy drive
+        self.disk = disk
+        self.fdc = FDC765(disk)
+        self.dma = {}             # DMAU channel -> {"lo": address bits 15-0, "hi": bank, "n": count - 1}
         self.icu = ICU8259()
         self.ports = {}
         self.port_log = collections.Counter()
@@ -156,6 +183,8 @@ class S2K:
                 self.on_tick(self)
         if getattr(self, "tick_pending", False) and self.irq(1):
             self.tick_pending = False
+        if self.fdc.irq and self.irq(3):
+            self.fdc.irq = False
 
     def _in(self, uc, port, size, ud):
         self.port_log[("in", port)] += 1
@@ -199,12 +228,37 @@ class S2K:
         elif port == 0x52:
             self.keyrow = value
         elif port == 0x22:
+            if self.fdc.disk is None and self.disk is not None:
+                self.fdc.disk = self.disk         # (restored from a snapshot)
             self.fdc.write(value)
+            if self.fdc.pending_read:
+                self._fdc_read(*self.fdc.pending_read)
+                self.fdc.pending_read = None
+        elif port in (0xC002, 0xC004, 0xC006):
+            ch = self.ports.get(0xC001, 0) & 3
+            self.dma.setdefault(ch, {})[{0xC002: "n", 0xC004: "lo", 0xC006: "hi"}[port]] = value
         elif port == 0x20:
             self.fdc.aux(value)
         elif port in (0xC010, 0xC012):
             self.icu.write(port, value)
         self.ports[port] = value
+
+    def _fdc_read(self, c, h, r, n, eot, hdus):
+        """Read data: sectors r.. (of 128 << n bytes) into DMA channel 1's buffer, until its count runs out."""
+        d = self.dma.get(1, {})
+        addr = ((d.get("hi", 0) & 0x0F) << 16) | (d.get("lo", 0) & 0xFFFF)
+        left = (d.get("n", 0) & 0xFFFF) + 1
+        size = 128 << n
+        while left > 0:
+            blk = c * 20 + h * 10 + (r - 1)
+            data = self.disk[blk * size:(blk + 1) * size] if size == 1024 else bytes(size)
+            take = min(left, size)
+            self.mu.mem_write(addr, data[:take])
+            addr, left = addr + take, left - take
+            r += 1
+        self.fdc.reads += 1
+        self.fdc.res = [hdus & 7, 0x00, 0x00, c, h, r, n]
+        self.fdc.irq = True
 
     def midi_in(self, data):
         """Inject MIDI bytes into the OS rx ring (consumer 0FE4:6040: ptr [0x73A2] -> [0x73A0], 256 B page)."""
