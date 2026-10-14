@@ -284,6 +284,14 @@ def main():
         import testkit
         disk = bytearray(testkit.add_files(bytes(disk), testkit.kit_files()))
         print("  test kit:", ", ".join(f"{n} ({sz} B @blk {st})" for n, t, sz, st in testkit.listing(disk)[1:]))
+    if os.environ.get("ROMPLER", "1") == "1":       # ROSETTA ROM: synth waves + programs (tools/rompler.py)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import rompler
+        import testkit
+        files = rompler.build()
+        disk = bytearray(testkit.add_files(bytes(disk), files))
+        print(f"  rompler: {len(files)} files ({sum(len(b) for _, _, b in files) // 1024} KB): "
+              + ", ".join(n for n, t, b in files if t != 0xF3))
     open(prefix + ".bin", "wb").write(osb)
     open(prefix + ".img", "wb").write(disk)
     hfe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hfe.py")

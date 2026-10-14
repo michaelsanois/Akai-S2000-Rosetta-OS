@@ -34,6 +34,7 @@ there's space to build much more. Nothing touches ROM or flash: boot your stock 
 | **LIVE REVERSE** on the input, with its own menu: BPM + note division or length in ms, feedback, attack, release, chunk leveling, loop start/end inside the chunk, octave up/down, tone, ping-pong, dry level | ✅ on hardware (0.24) |
 | **SAV**: the REV menu's knobs (plus FB and IN) saved to the boot floppy, back after a power cycle. FB is remembered per REV type | emulator ✅, hardware test next (0.25) |
 | **COMP gate**: chunks quieter than -18 dB get less boost, none in silence, so hiss between notes is cut instead of pumped up | emulator ✅ (0.25) |
+| **ROSETTA ROM**, a tiny synth rompler: 5 band-limited waves (saw, square, pulse, triangle, sine) in 5 key ranges + 9 synth programs (SAW, SQUARE, PULSE, TRI, SINE, SUPERSAW, BASS, PAD, PLUCK) on the boot floppy. The S2000 loads them with the OS: programs 1-9 at power-on, no disk needed | emulator ✅ (they load), hardware test next (0.25) |
 | **The rocker** (the big knob's outer ring) on Rosetta pages: half push = next / previous knob, full push = a jump (a page, or 5 menu entries, like stock lists) | emulator ✅ (0.25) |
 | **HOME hub**: main screen line 2 = `LOAD  HALL  EDIT`, F1 / F2 under the screen jump to LOAD and EDIT | ✅ on hardware |
 | **Back one level**: SINGLE (the home key) steps back (page → top of the mode → HOME) instead of always jumping home | ✅ on hardware |
@@ -99,6 +100,9 @@ Panel names: **F1 / F2** = the two buttons under the screen, **SINGLE** = the ho
 
   Long chunks and octave up store the input at 22 or 11 kHz, so the reversed copy gets darker (the dry never
   does). While live reverse runs, the monitor is ~12 ms late (stock: ~3 ms).
+- **ROSETTA ROM**: right after boot, turn the DATA wheel on the main screen to pick program 1-9 (RS SAW ... RS
+  PLUCK) and play. SUPERSAW and PAD stack 3 detuned voices per note, BASS 2. The SYNTH CCs below (drift, detune,
+  filter LFO) turn them into a moving analog-style synth.
 - **HOME** (main screen): line 2 shows `LOAD  <effect>  EDIT`. Left button under the screen = LOAD,
   right button = EDIT program.
 - **Menus**: EDIT (program), REC → EDIT (sample) and TUNE (global) open a menu like `EDIT PROGRAM 1/8` /
@@ -141,7 +145,8 @@ python -I tools/mkbaby.py build/s2kos2.img template.hfe build/S2K_ROSETTA
 2. Boot the S2000 from the Gotek. The dragon flies, then the HOME screen.
 3. The disk also carries a small **test kit** (CLICK, NOISE BURST, BEEP 1K) to LOAD from the same floppy.
    It's built with the akaitool package from [AKAI-CD-ISO-MAKER](https://github.com/yuyoi/AKAI-CD-ISO-MAKER)
-   (clone it next to this repo or set `$AKAITOOL`), or set `TESTKIT=0` to leave it out.
+   (clone it next to this repo or set `$AKAITOOL`), or set `TESTKIT=0` to leave it out. The ROSETTA ROM synth
+   waves and programs (`tools/rompler.py`, 30 KB) go on too; `ROMPLER=0` leaves them out.
 
 Every patch checks the stock bytes first, so a wrong OS image fails loudly instead of building junk.
 
@@ -187,7 +192,6 @@ It boots, and the FX, menus, sampling and synth layer work on a real S2000. Expe
 - A SYNTH page on the front panel (the CCs stay for sequencing), unison, wavetable scanning (move a voice's loop
   through a table), fake-analog and fake-LA waves.
 - Live reverse: follow MIDI clock, a lower-latency fill from the timer interrupt.
-- A tiny built-in synth / rompler: a few waveforms that play with no disk loaded.
 - Freeze / resonator / shimmer effects, tempo-synced echo, denser and modulated reverbs.
 - Quick jobs (load → audition → assign in a couple of presses), stereo hold-to-record.
 
