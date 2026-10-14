@@ -141,6 +141,39 @@ Per-voice registers: 0 start, 1 end + rate (4.12 fixed point vs 44.1k), 2 loop, 
 - No ISR writes the voice chip (s2k_ui.py isrcheck: 0 writes in 1200 ticks with notes), so main-loop tap writes are safe.
 - One line = no series allpasses: reverbs are multi-tap feedback loops (dense = short + ringy, long = echoey). Ideas: modulate a few feedback taps (Lexicon-style), trade output taps for more feedback taps.
 
+## Live input (0.24, measured on hw over the SysEx lab, 2026-10-14)
+- The input only runs on the SAMPLE page (mode 4). The ADC's DMA (**ch2**) fills an 8 KB autoinit ring at `0:90D0`
+  (`2345:1FD9`). `2345:3078` puts the chip in **input mode**: the chip's DMA (**ch3**) reads the same ring 5 samples
+  behind ch2 (mode 59h, count FFFh), then voices 0 and 10h write it into 128-sample rings at sample RAM 10000h and
+  10080h (templates `2D95:37E4` / `3810`), and voices 15h / 17h play them back as the **monitor** (templates
+  `2D95:3894` / `38C0`, L/R from `2345:26C5` = [7557] MONITOR + [7500] stereo). Then `out 88h, 150h | stereo << 3`,
+  wait for 88h bit 7, key on. `0FE4:53BF` = the OS's input start (`C841` all voices off + `out 88h, 0`, `3D04`,
+  `3078`); `0FE4:5390` = stop.
+- **Input FX** = the monitor voices' reg 7 word 1 (send << 8 | 0Fh): the input goes into the delay engine. In mono,
+  17h loops a 128-sample ring nobody writes (a steady ~344 Hz tone): send it only in stereo.
+- **Live reverse**: ch3 pointed at our own 8 KB ring (4000:E000, linear 4E000h, page byte C006 = 04h) with the chip
+  in stereo input mode; the CPU fills L = input, R = reversed chunks from a 40 KB history. Our writes must lead ch3:
+  main-loop passes on the SAMPLE page come 2.5-5 ms apart (gaps to ~10 ms with feedback), so the lead is 512
+  frames (11.6 ms).
+- The OS's sample-RAM DMA (`2345:1AA0` / `1AC8` / `1B66`) borrows **voice 0 + ch3**: on the SAMPLE page it knocks
+  the input writer out of its ring (the monitor goes silent; leaving and re-entering the page fixes it). The lab
+  refuses DMA commands in mode 4.
+- The REC meter's draw is one far call at `0FE4:3827` (`lcall 2345:0B0B`); the meter page is mode 4 page 5.
+- DMAU: channel select `C001` reads back (save/restore it), current address `C004`, count `C002`, mode `C00A`.
+  The chip's select port `80h` reads back too.
+- CPU: this V53 manages ~11 clocks an instruction with both DMAs streaming. A per-sample loop over 44.1k samples/s
+  took ~80 % (main-loop passes 400/s -> 83/s); block copies with string moves brought live reverse to ~40 %.
+  A multiply per sample is too much: octave shifts use adds and shifts only.
+
+## L7A1045 registers, as used (MAME names, hw-checked 2026-10-14)
+- 0 start (word 2 = 100h | A23-20, word 1 = A19-4, word 0 = A3-0 << 12), 1 end + rate, 2 loop (word 0 = length,
+  **signed**: 8000h+ plays junk), 3 **current volume** (word 1), 4 volume target (word 1) + step (word 0, 8.8 a
+  sample; bit 15 = going down), 5 current cutoff (word 1 = target / 2), 6 cutoff target (word 1, 7FF0h = open,
+  low 4 bits = resonance) + step, 7 L/R (word 0, L in the high byte) and send << 8 | dest (word 1).
+- **A 0 written to reg 3 keys the voice off** (MAME: "MPC3000 writes 0 to offset 0 to silence"). Rosetta 0.24 did
+  that on the running reverse voice and the wet stayed dead until the input restarted.
+- Volume step 7FFFh never climbed on hw; Rosetta caps steps at 1388h (the OS's own for the monitor voice).
+
 ## Opportunities (for Rosetta)
 - Menu flow: skip LOAD/SAVE "DISK or FLASHROM" when there's no flash (it already detects "No Flash ROM fitted"), and skip "FLOPPY or HDSK" when there's no SCSI disk. That makes LOAD one press instead of three. Faster key auto-repeat. EFFECTS is a dead key without an EB16, so make it the Rosetta FX page.
 - Faux FX: hook the note-on at 2B9D:016C (doubling, detune, harmony, echo repeats scheduled from the tick). Per-voice pitch, level, pan and filter LFOs. Unlock the chip's delay engine.

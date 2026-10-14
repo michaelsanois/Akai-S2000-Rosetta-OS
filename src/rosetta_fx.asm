@@ -48,7 +48,14 @@ fx_entry:
         retf
 
 ; soft key al (0-7) on the FX page (from key_hook in rosetta_home.asm)
-fx_key: cmp al, 0
+fx_key: push ax
+        mov ah, 1                 ; MFX with a REV type: the reverse's own menu (hi code)
+        call hi_rv
+        jc .lo
+        add sp, 2
+        jmp fx_tstep
+.lo:    pop ax
+        cmp al, 0
         je .left
         cmp al, 1
         je .right
@@ -81,11 +88,13 @@ fx_key: cmp al, 0
 
 ; wheel / inc-dec on the FX page: called from lfo_hook (main-loop wait), grabs the deltas atomically
 fx_poll:
+        cmp byte [cs:mfx], 0
+        jne .ok
         cmp byte [MODE], MODE_FX
         jne .r
         cmp byte [PAGE], FXPAGE
         jne .r
-        xor al, al
+.ok:    xor al, al
         xchg al, [WHEEL]
         or al, al
         jnz .go
@@ -94,11 +103,21 @@ fx_poll:
         jz .r
 .go:    pusha                 ; DATA wheel / step: change the value
         push es
+        cmp byte [cs:mfx], 0
+        jne .v
         cmp byte [cs:ctx], CTX_MENU
         jne .v
         call pm_move          ; menu: move the selection
         jmp .gd
-.v:     cbw
+.v:     push ax
+        mov ah, 2
+        call hi_rv
+        jc .v2
+        add sp, 2
+        call fx_tstep
+        jmp .gd
+.v2:    pop ax
+        cbw
         call fx_change
 .gd:
         pop es
@@ -128,7 +147,12 @@ fx_change:
 .p:     xor bh, bh
         shl bx, 1
         mov di, [cs:fparam+bx]
-        mov cx, [cs:fmin+bx]
+        cmp bl, F_WET * 2
+        jne .nw
+        cmp byte [cs:mfx], 0
+        je .nw
+        mov di, iwet          ; MFX: the input's send instead of WET
+.nw:    mov cx, [cs:fmin+bx]
         mov dx, [cs:fmax+bx]
         cmp bl, F_FB * 2
         jne .lim
@@ -174,17 +198,89 @@ fx_settype:
         call setsend
         jmp fx_apply
 
-; send level byte = WET * 255 / 99 into reg7 word1 (dest 0xF = delay engine) via fxsendv
+; send level byte = WET * 255 / 99 into reg7 word1 (dest 0xF = delay engine) via fxsendv; the same for the
+; input (MFX IN) into isendv, 0 when IN is 0 (the stock monitor voices' word1)
 setsend:
         mov ax, [cs:pwet]
+        call sendlvl
+        mov [cs:fxsendv], ax
+        mov ax, [cs:iwet]
+        or ax, ax
+        jz .i
+        call sendlvl
+.i:     mov [cs:isendv], ax
+        ret
+sendlvl:
         mov dx, 255
         mul dx
         mov bx, 99
         div bx
         mov ah, al
         mov al, 0x0F
-        mov [cs:fxsendv], ax
         ret
+
+; ---------------------------------------------------------------------------------------------
+; MFX: EFFECTS on the sampling screen (mode 4) shows the FX page over the meter page (the input only runs in
+; mode 4, so this stays there): same TYPE / TIME / FB / RATE (one delay engine), WET becomes IN = how much
+; of the input goes into it (the hi code puts isendv on the OS's input monitor voices 15h / 17h).
+; EFFECTS again = next type, home = back to the meter (key_hook), any mode change closes it (page0_hook).
+mfx_key:
+        cmp byte [cs:mfx], 0
+        je .show
+        mov al, [cs:fxon]
+        inc al
+        call fxcnt
+        cmp al, ah
+        jb .s
+        xor al, al
+.s:     call fx_settype
+        jmp fx_show
+.show:  mov byte [cs:mfx], 1
+        mov byte [PAGE], REC_ARM  ; the meter page has no fields for the wheel to change underneath
+        jmp fx_show
+
+; 0FE4:3827, the REC meter's draw (far call 2345:0B0B): skipped while the MFX page covers it
+meter_gate:
+        cmp byte [cs:mfx], 0
+        jne .r
+        jmp 0x2345:0x0B0B
+.r:     retf
+
+; MFX with a REV type: the live reverse's menu is in the hi code (src/rosetta_rvui.asm, header +1B): ah = 0 draw
+; (al != 0: LCD too), 1 = soft key al, 2 = value step al. CF = 1: not ours (not MFX, no hi code, not a REV type);
+; else al = a TYPE step for us (0 = none)
+hi_rv:  cmp byte [cs:mfx], 0
+        je .no
+        push es
+        push bx
+        mov bx, LOAD_SEG
+        mov es, bx
+        cmp byte [es:3], 1        ; the hi code is in and running (src/rosetta_load.asm state)
+        pop bx
+        pop es
+        jne .no
+        call HI_SEG:0x001B
+        ret
+.no:    stc
+        ret
+
+; al = signed TYPE step from the REV menu (0 = none)
+fx_tstep:
+        or al, al
+        jz .r
+        call fxcnt                ; ah = number of presets
+        add al, [cs:fxon]
+.w1:    or al, al
+        jns .w2
+        add al, ah
+        jmp .w1
+.w2:    cmp al, ah
+        jb .w3
+        sub al, ah
+        jmp .w2
+.w3:    call fx_settype
+        jmp fx_show
+.r:     ret
 
 presetptr:                    ; si = record of preset [cs:fxon]
         mov bl, [cs:fxon]
@@ -214,6 +310,11 @@ fbmax:  push si               ; ax = the preset's FEEDBACK limit (0 = no feedbac
 ; 2 x 16 text into fxbuf -> page 0x0C RAM text (2D95:1402 / 1415); al != 0: also straight to the LCD
 fx_render:
         push ax
+        mov ah, 0
+        call hi_rv
+        pop ax
+        jnc .r0
+        push ax
         mov ah, F_TYPE
         call mark
         mov [cs:fxbuf], al
@@ -231,7 +332,12 @@ fx_render:
         mov word [cs:fxbuf + 10], 'WE'
         mov byte [cs:fxbuf + 12], 'T'
         mov ax, [cs:pwet]
-        mov di, fxbuf + 13
+        cmp byte [cs:mfx], 0
+        je .w
+        mov word [cs:fxbuf + 10], 'IN'
+        mov byte [cs:fxbuf + 12], ' '
+        mov ax, [cs:iwet]
+.w:     mov di, fxbuf + 13
         call itoa3
         mov ah, F_TIME
         call mark
@@ -256,7 +362,8 @@ fx_render:
         call itoa3
         mov byte [cs:fxbuf + 31], ' '
         pop ax
-        ; fall through
+        jmp fx_out
+.r0:    ret
 ; fxbuf -> page 0x0C RAM text (2D95:1402 / 1415); al != 0: also straight to the LCD
 fx_out: push ax
         mov ax, DATA_SEG
@@ -587,6 +694,9 @@ keepph:   db 0
 nmods:    db 0
 lasttick: db 0
 pwet:     dw 50
+iwet:     dw 0                ; MFX IN (0-99): input into the FX, 0 = stock
+isendv:   dw 0                ; its reg7 word1 for the input monitor voices (hi code reads it)
+mfx:      db 0                ; MFX page showing over the REC meter
 ptime:    dw 100
 pfb:      dw 0                 ; boot preset OFF has no feedback (fbmax 0)
 prate:    dw 100

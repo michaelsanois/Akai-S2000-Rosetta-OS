@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.23"
+VERSION = "0.24"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -164,6 +164,9 @@ PATCHES = [
     # wait (2345:27EB `call 27F8` + `jb 27F7`) -> MENU_SEG:0021 (watches the key, ends the take early)
     (lin(SEG_MAIN, 0x3AA0), bytes.fromhex("A0D473C606D47300"), bytes.fromhex("9A1E00") + MENU_SEG.to_bytes(2, "little") + bytes.fromhex("909090")),
     (lin(0x2345, 0x27EB), bytes.fromhex("E80A007207"), bytes.fromhex("9A2100") + MENU_SEG.to_bytes(2, "little")),
+    # MFX (0.24): the REC meter's draw (0FE4:3827 lcall 2345:0B0B) -> MENU_SEG:0024, skipped while the MFX
+    # page sits over the meter page
+    (lin(SEG_MAIN, 0x3827), bytes.fromhex("9A0B0B4523"), bytes.fromhex("9A2400") + MENU_SEG.to_bytes(2, "little")),
     # data-key auto-repeat (ticks 0.511 ms on hw, measured 2026-10-14; TCU ch0 4087 @ 8 MHz): first repeat 1000 -> 300,
     # interval start 200 -> 80, floor 40 -> 10 (step stays 10, so it lands exactly on the floor)
     (0x23C49, (1000).to_bytes(2, "little"), (300).to_bytes(2, "little")),
@@ -211,7 +214,7 @@ def build_hi(build_dir):
     with open(pre, "w") as f:
         f.write("[map symbols " + os.path.join(build_dir, "rosetta_hi.map") + "]" + chr(10))
     blob = nasm_blob(build_dir, "rosetta_hi.asm", [f"-DHI_VERSION={vw}", "-P", pre])
-    assert blob[:4] == b"RSHI" and len(blob) <= 0x10000
+    assert blob[:4] == b"RSHI" and len(blob) <= 0x4000, "hi code must stay below 0x44000 (live reverse history + LABBUF, src/rosetta_lrev.asm)"
     return blob + bytes(-len(blob) % 1024)
 
 

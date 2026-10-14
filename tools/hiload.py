@@ -46,7 +46,9 @@ while True:
 
 lab.poke(LOAD_SEG, STATE, b"\x02")
 time.sleep(0.1)
-lab.poke(HI_SEG, 0, blob)
+for i in range(0, len(blob), 96):       # paced: back to back, 6 KB overran the OS's MIDI input on the SAMPLE page
+    lab.poke(HI_SEG, i, blob[i:i + 96])  # (its main loop is slower there)
+    time.sleep(0.015)
 time.sleep(0.1)
 assert lab.peek(HI_SEG, 0, len(blob)) == blob, "upload read-back mismatch"
 for seg, off, stock, new in hooks:

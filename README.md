@@ -6,9 +6,9 @@
 
 **New tricks for the Akai S2000 sampler.** Rosetta OS is a patch kit for the stock **OS 2.0**: you build a boot
 floppy image from **your own** S2000 OS disk and boot it from a Gotek (FlashFloppy). It unlocks the voice chip's
-hidden **delay engine** as 8 effects with their own EFFECTS page (no EB16 effects board needed), adds an
-MPC-style home screen and menus, one-button sampling, and a **synth layer** (analog drift, detune, filter LFO on
-MIDI CCs). It also gives the S2000 **64 KB of room for new code**, loaded from the boot floppy after boot, so
+hidden **delay engine** as effects with their own EFFECTS page (no EB16 effects board needed), puts the **live
+input** through them, including a tempo-synced **live reverse delay** with its own menu, adds an MPC-style home
+screen and menus, one-button sampling, and a **synth layer** (analog drift, detune, filter LFO on MIDI CCs). It also gives the S2000 **64 KB of room for new code**, loaded from the boot floppy after boot, so
 there's space to build much more. Nothing touches ROM or flash: boot your stock disk and it's an S2000 again.
 
 > **Made by JunkSmithWizard (JSW) together with Claude (Anthropic's AI).** Claude wrote the code and did the
@@ -30,9 +30,12 @@ there's space to build much more. Nothing touches ROM or flash: boot your stock 
 | Feature | Status |
 |---|---|
 | **Rosetta FX**: ROOM, HALL, PLATE, ECHO, PINGPONG, CHORUS, FLANGER on the voice chip's own delay engine | ✅ on hardware (0.10) |
-| **EFFECTS page**: `>HALL >WET 50` / `>T100 >F100 >R100` (type, wet, time/size, feedback, LFO rate) | emulator ✅, hardware test next |
-| **HOME hub**: main screen line 2 = `LOAD  HALL  EDIT`, the soft keys under the screen jump to LOAD and EDIT | emulator ✅, hardware test next |
-| **Back one level**: the home key steps back (page → top of the mode → HOME) instead of always jumping home | emulator ✅, hardware test next |
+| **Reverse delay** on played notes: REVERSE and REV HALL (the hall's tail flipped) | ✅ on hardware (0.22) |
+| **EFFECTS page**: `>HALL >WET 50` / `>T100 >F100 >R100` (type, wet, time/size, feedback, LFO rate) | ✅ on hardware |
+| **MFX = input FX**: EFFECTS on the sampling screen opens the same page for the live input (WET becomes IN) | ✅ on hardware (0.24) |
+| **LIVE REVERSE** on the input, with its own menu: BPM + note division or length in ms, feedback, attack, release, chunk leveling, loop start/end inside the chunk, octave up/down, tone, ping-pong, dry level | ✅ on hardware (0.24) |
+| **HOME hub**: main screen line 2 = `LOAD  HALL  EDIT`, F1 / F2 under the screen jump to LOAD and EDIT | ✅ on hardware |
+| **Back one level**: SINGLE (the home key) steps back (page → top of the mode → HOME) instead of always jumping home | ✅ on hardware |
 | **Area menus**: EDIT PROGRAM (8 groups), EDIT SAMPLE (6) and GLOBAL (4) open a menu, essentials first. PAGE stays inside the group, GROUP jumps to the next one | EDIT PROGRAM ✅ on hardware (0.13), the rest emulator ✅ |
 | **Sampling screen**: REC opens on the input meter with `SETUP        ARM` (stock hides it behind GROUP); a finished take lands on the sample select page | ✅ on hardware (0.16) |
 | **REC = start/stop**: armed, hold REC to record while held, or tap to start and tap again to stop | ✅ on hardware (0.21) |
@@ -64,10 +67,32 @@ Then:
 One delay line means no series allpasses, so the reverbs have a metallic, digital character. Cool, but there's
 room to grow (modulated feedback taps are next).
 
+**Reverse** needs more than taps: on notes, Rosetta copies chunks of the delay line out to sample RAM, flips
+them, and plays them on spare voices. On the **live input** it goes further: the chip's own input DMA is pointed
+at a ring buffer Rosetta fills, in stereo mode. The left channel is your input (the dry monitor). The right one is
+the previous chunk of the input backwards, played on its own voice with its own envelope, volume, filter and send.
+
 ## Using it
 
+Panel names: **F1 / F2** = the two buttons under the screen, **SINGLE** = the home key, **SAMPLE** = REC.
+
 - **EFFECTS**: the first press opens the FX page; pressing it again picks the next effect.
-  The two buttons under the screen move the `>`; the DATA wheel and the PAGE/GROUP keys change the value.
+  F1 / F2 move the `>`; the DATA wheel and the PAGE/GROUP keys change the value.
+- **MFX (input FX)**: on the sampling screen (SAMPLE), press **EFFECTS**. Same page, but WET is **IN**: how much of
+  the input goes into the effect. EFFECTS again = next type, SINGLE = back to the meter. You hear it live; the take
+  still records dry. One delay engine, so the type, time and feedback are shared with the notes' FX page.
+- **Live reverse**: pick **REVERSE** or **REV HALL** on the MFX page and turn IN up. The page becomes the REV menu:
+  **PAGE ▲▼** = page, **F1 / F2** = knob, **wheel** or **GROUP ▲▼** = value.
+
+| Page | Knobs |
+|---|---|
+| 1 | TYPE · **IN** (wet: 50 = as loud as the dry, 99 = full) · **DIV** (1/16, 1/8, dotted 1/8, 1/4, dotted 1/4), or **LEN** in ms when BPM is FREE · **BPM** (40-240, below 40 = FREE) |
+| 2 | **FB** feedback (repeats come back reversed again) · **ATK** / **REL** (each chunk swells in / fades out) · **CMP** (chunk leveling: quiet chunks up, loud ones down, no clipping) |
+| 3 | **STR** / **END** (a loop inside the reversed chunk, like a sample's loop points: stutters) · **OCT** (-1 / 0 / +1) · **TON** (dark to open) |
+| 4 | **PNG** ping-pong (chunks alternate left / right) · **DRY** (the input's own level) · **SWL** (soft chunk edges) |
+
+  Long chunks and octave up store the input at 22 or 11 kHz, so the reversed copy gets darker (the dry never
+  does). While live reverse runs, the monitor is ~12 ms late (stock: ~3 ms).
 - **HOME** (main screen): line 2 shows `LOAD  <effect>  EDIT`. Left button under the screen = LOAD,
   right button = EDIT program.
 - **Menus**: EDIT (program), REC → EDIT (sample) and TUNE (global) open a menu like `EDIT PROGRAM 1/8` /
@@ -127,6 +152,10 @@ The menu code (`src/rosetta_menu.asm` and friends, 5.6 KB) is full, so new featu
   target (`2345:59CD`, log 0-FFF, the chip glides to it every ~15 ms), MIDI CC (`2B9D:01AE`). The note-on
   path, voice table and chip registers are in `docs/FINDINGS.md`; ideas in `docs/ideas.md`.
 - Timing: the OS tick `[73DA]` is **0.511 ms** on hardware (1957 Hz).
+- The live input path, the DMA channels and the voice-chip registers as used (incl. two traps: a 0 written to the
+  volume register keys the voice off, and big envelope steps never move) are in `docs/FINDINGS.md`.
+- `tools/lrsim.py` runs the live-reverse engine's real machine code in unicorn against a simulated ADC ring and
+  DMA pointers and checks every mode against numpy. It caught three bugs before they reached hardware.
 - The emulator can run the whole thing: `s2k_ui.py` uses the build's `.img` as the floppy (`S2K_DISK`,
   `S2K_DISK_AT` to insert it after the OS's boot-time disk read so notes play).
 
@@ -149,6 +178,7 @@ It boots, and the FX, menus, sampling and synth layer work on a real S2000. Expe
 **Planned:**
 - A SYNTH page on the front panel (the CCs stay for sequencing), unison, wavetable scanning (move a voice's loop
   through a table), fake-analog and fake-LA waves.
+- Live reverse: follow MIDI clock, a lower-latency fill from the timer interrupt, keep the knobs over a reboot.
 - Freeze / resonator / shimmer effects, tempo-synced echo, denser and modulated reverbs.
 - Quick jobs (load → audition → assign in a couple of presses), stereo hold-to-record.
 

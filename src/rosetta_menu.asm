@@ -15,6 +15,7 @@ MODE_LOAD equ 0x0A
 FLASH_SEG equ 0x2316          ; 1F50 module data: dword at 2316:0024 = fitted flash (0 = none)
 
 DATA_SEG  equ 0x2D95          ; OS data segment for pages + delay presets
+HI_SEG    equ 0x4000          ; the hi code (src/rosetta_hi.asm), loaded by LOAD_SEG
 FXPAGE_L1 equ 0x1402          ; page 0x0C text ("Effects board" / "EB16 not present"), 16 chars each
 FXPAGE_L2 equ 0x1415
 FX_SEND   equ 0x800F          ; reg7 word1: send level 0x80 (bits 15-8), e = 0, dest 0xF = delay engine
@@ -35,6 +36,7 @@ fxsendv: dw FX_SEND           ; +13 reg7 word1 OR value while on (send level/e/d
         jmp near rec_done     ; +1B from 0FE4:3CE7 (replaces `mov byte [8215],0` at the end of a kept take)
         jmp near rec_armkey   ; +1E from 0FE4:3AA0 (armed loop's `mov al,[73D4]` + `mov byte [73D4],0`, + 3 nop)
         jmp near rec_wait     ; +21 from 2345:27EB (a record step's `call 27F8` + `jb 27F7`): REC key stops
+        jmp near meter_gate   ; +24 from 0FE4:3827 (the REC meter's `lcall 2345:0B0B`): off under the MFX page
 
 ; Mode entry sets page 0. For LOAD/SAVE without a flash ROM, page 0 only asks
 ; "DISK or FLASHROM" and FLASHROM just says "No Flash ROM fitted!" -> start on page 1
@@ -47,6 +49,7 @@ page0_hook:
         mov al, [cs:onfx]     ; FX page bookkeeping: EFFECTS pressed while on it = next type
         mov [cs:wasfx], al
         mov byte [cs:onfx], 0
+        mov byte [cs:mfx], 0
         mov al, [MODE]
         or al, al
         jnz .ls
@@ -91,7 +94,7 @@ fxsend: cmp byte [cs:fxon], 0
 SX_STOCK  equ 0x63CB          ; Akai SysEx handler 0FE4:63CB
 SX_STUB   equ 0xF6B2          ; 0FE4:F6B2 pad stub -> sx_byte
 SX_MAX    equ 420
-VERSION_W equ 0x0023          ; reply to PING
+VERSION_W equ 0x0024          ; reply to PING
 
 sx_start:
         mov word [0x7DE6], SX_STOCK

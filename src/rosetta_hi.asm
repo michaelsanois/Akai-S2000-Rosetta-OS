@@ -15,7 +15,8 @@
 ;   CC 24 LFO RATE  0.03-10 Hz
 ;   CC 25 LFO SPRD  per-voice LFO phase spread (0 = all voices together, 127 = all different)
 ; REVERSE delay (0.22, src/rosetta_rev.asm): CC 26 level (0 = off), 27 time, 28 feedback, 29 octave up.
-; LIVE input FX (0.23, src/rosetta_live.asm): CC 30 input into the FX (0 = off), 31 dry input on the outs.
+; MFX input FX (0.24): on the sampling screen the OS plays the input back on voices 15h / 17h (its monitor);
+; mfx_run sets their FX send to the MFX page's IN level (lo isendv), so the input runs through the FX.
 ; Hooks: 2345:5611 (every pitch write: note-on + the ~15 ms update, pitch = semitone * 256) and 2345:59CD
 ; (every cutoff target, log 0-FFF, the chip glides to it), 2B9D:01AE (MIDI CC in, any channel).
         cpu 186
@@ -43,6 +44,7 @@ RETF_2345 equ 0x27CB          ; a retf in segment 2345 (near-call trick)
         dw patches            ; +15 for tools/hiload.py
         dw mbox               ; +17 lab mailbox (reverse-delay research, run from the tick)
         dw par                ; +19 the CC 20-29 values (lab)
+        jmp near rv_ui        ; +1B the REV menu (src/rosetta_rvui.asm), from the menu code's MFX page
 
 hi_init:
         pusha
@@ -211,7 +213,15 @@ hi_tick:
         mov byte [cs:inited], 1   ; sent in over SysEx: hook the OS ourselves
         call apply
         call hi_setup
-.go:    cmp byte [cs:mbox], 0
+.go:    inc word [cs:npass]       ; lab: passes + the longest gap in OS ticks (how often the FX LFO runs)
+        call 0x2345:0x0A47
+        mov ah, al
+        sub ah, [cs:ptick]
+        mov [cs:ptick], al
+        cmp ah, [cs:maxgap]
+        jbe .g
+        mov [cs:maxgap], ah
+.g:     cmp byte [cs:mbox], 0
         je .nomb
         call lab_cmd
 .nomb:  cmp word [cs:hammer], 0
@@ -228,12 +238,11 @@ hi_tick:
         cmp byte [cs:rv_act], 0
         je .nr
         call rev_stop
-.nr:    cmp byte [cs:lv_act], 0
-        je .ndma
-        call live_stop
+.nr:    call lr_run
+        call mfx_run
         jmp .ndma
-.dma:   call rev_run
-        call live_run
+.dma:   mov byte [cs:lr_act], 0   ; off the SAMPLE page the OS has stopped the input (live reverse included)
+        call rev_run
 .ndma:
         call 0x2345:0x0A47    ; al = tick
         mov ah, al
@@ -352,13 +361,26 @@ hi_tick:
 
 ; ---------------------------------------------------------------------------------------------
 ; lab mailbox (poked over SysEx, run here in the main loop): cmd 1 = read [count] words of sample RAM from
-; [addr] into 4100:0000, 2 = write them back from there, 3 = delay-line write position -> result.
+; [addr] into LABBUF:0000, 2 = write them back from there, 3 = delay-line write position -> result.
 ; t0/t1 = OS tick before/after (0.511 ms each).
-LABBUF    equ 0x4100
+LABBUF    equ 0x4800          ; lab / reverse scratch (4 KB at 0x48000): above the code + tables (0.24 fix: at 0x4100
+                              ; it overlapped sintab / hsin / dtab once the blob passed 4 KB, so REV slices wrote audio
+                              ; into the chorus sine table). mkbaby.py checks the blob stays below it.
+SCANBUF   equ 0x4900          ; lab cmd 4 peaks
+TONE_V    equ 25              ; lab test tone voice (odd: see rosetta_rev.asm)
 lab_cmd:
         call 0x2345:0x0A47
         mov [cs:mb_t0], al
         mov al, [cs:mbox]
+        cmp byte [0x762B], 4      ; SAMPLE page: the sample-RAM DMA (cmds 1, 2, 4, 5) borrows voice 0 = the
+        jne .ok                   ; input writer and breaks the OS's input mode (hw 0.24): refused, res = FFFF
+        cmp al, 6
+        jae .ok
+        cmp al, 3
+        je .ok
+        mov word [cs:mb_res], 0xFFFF
+        jmp .done
+.ok:
         cmp al, 3
         je .pos
         cmp al, 4
@@ -368,8 +390,88 @@ lab_cmd:
         mov ax, [cs:mb_count]     ; cmd 5: hammer for [count] main-loop passes
         mov [cs:hammer], ax
         jmp .done
-.c6:
+.c6:    cmp al, 9                 ; cmd 9: DMA channel [count] current address + count -> res, res2
+        jne .c8                   ; (V53 DMAU: channel select C001, address C004, count C002)
+        pushf
+        cli
+        mov dx, 0xC001
+        in al, dx
+        push ax
+        mov al, [cs:mb_count]
+        out dx, al
+        mov dx, 0xC004
+        in ax, dx
+        mov [cs:mb_res], ax
+        mov dx, 0xC001
+        mov al, [cs:mb_count + 1]
+        out dx, al
+        mov dx, 0xC004
+        in ax, dx
+        mov [cs:mb_res2], ax
+        pop ax
+        mov dx, 0xC001
+        out dx, al
+        popf
+        jmp .done
+.c8:    cmp al, 8                 ; cmd 8: test tone on voice 25 (count = loop words at sample RAM word
+        jne .c67                  ; addr, a whole chunk looping, FX send = the FX page WET) / count 0 = off
+        mov bl, TONE_V
+        mov ax, [cs:mb_count]
+        or ax, ax
+        jz .toff
+        mov [cs:vs_len], ax
+        mov al, [cs:mb_addr + 2]
+        mov [cs:vs_hi], al
+        mov word [cs:vs_rate], 0x1000
+        mov word [cs:vs_lvl], 0x3F80
+        mov word [cs:vs_lr], 0x6060
+        push es
+        mov ax, MENU_SEG
+        mov es, ax
+        mov ax, [es:LO_fxsendv]
+        mov [cs:vs_send], ax
+        mov ax, 0x2D95
+        mov es, ax
+        or byte [es:VOICES + TONE_V * 0x1BC + 0x14D], 1
+        pop es
+        pushf
+        cli
+        call vstart
+        popf
+        jmp .done
+.toff:  mov word [cs:vs_lvl], 0x3F80
+        pushf
+        cli
+        call vfade
+        popf
+        push es
+        mov ax, 0x2D95
+        mov es, ax
+        and byte [es:VOICES + TONE_V * 0x1BC + 0x14D], 0xFE
+        pop es
+        jmp .done
+.c67:   cmp al, 6                 ; cmd 6 / 7: chip register write / read, atomic: select = addr low word
+        jb .rw                    ; (reg << 8 | voice), port = addr high word, value = count / -> res
+        cmp al, 7
+        ja .rw
+        mov dx, [cs:mb_addr + 2]
+        mov bx, [cs:mb_count]
+        pushf
+        cli
+        push ax
         mov ax, [cs:mb_addr]
+        out 0x80, ax
+        pop ax
+        cmp al, 6
+        jne .cr
+        mov ax, bx
+        out dx, ax
+        jmp .cw
+.cr:    in ax, dx
+        mov [cs:mb_res], ax
+.cw:    popf
+        jmp .done
+.rw:    mov ax, [cs:mb_addr]
         mov [0x78E4], ax          ; OS sample-RAM DMA pointer (DS = 0 here)
         mov ax, [cs:mb_addr + 2]
         mov [0x78E6], ax
@@ -386,7 +488,7 @@ lab_cmd:
 .pos:   call 0x2345:0x3294        ; ax = delay line write position (reg A fn 0)
         mov [cs:mb_res], ax
         jmp .done
-.scan:  ; cmd 4: [count] chunks of 2048 words from [addr]: peak |sample| >> 8 of each -> 4200:0000.. (1 byte each)
+.scan:  ; cmd 4: [count] chunks of 2048 words from [addr]: peak |sample| >> 8 of each -> SCANBUF:0000.. (1 byte each)
         mov ax, [cs:mb_addr]
         mov [0x78E4], ax
         mov ax, [cs:mb_addr + 2]
@@ -413,7 +515,7 @@ lab_cmd:
         mov bx, ax
 .p2:    loop .pk
         pop ds
-        mov ax, 0x4200
+        mov ax, SCANBUF
         mov es, ax
         mov [es:bp], bh
         inc bp
@@ -421,6 +523,113 @@ lab_cmd:
 .done:  call 0x2345:0x0A47
         mov [cs:mb_t1], al
         mov byte [cs:mbox], 0
+        ret
+
+; sampling screen (mode 4): the OS's input monitor voices 15h / 17h (2345:3078, templates 2D95:3894 / 38C0,
+; reg 7 word 1 = 0) get the MFX IN send, every pass (the OS rewrites them on input start / MONITOR changes).
+; FX OFF = 0 = stock. Hw 0.23 lab: send 40h with ECHO = the input echoes.
+mfx_run:
+        push es
+        mov ax, MENU_SEG
+        mov es, ax
+        xor ax, ax
+        cmp byte [es:LO_fxon], 0
+        je .w
+        mov ax, [es:LO_isendv]
+        or ax, ax
+        jz .w
+        mov al, ah            ; IN 99 = send 66h (hw 0.24: guitar at IN 66 = send AAh clipped the chorus /
+        xor ah, ah            ; flanger taps = fizz; IN 20 = 33h was almost clean)
+        shl ax, 1
+        mov dl, 5
+        div dl
+        mov ah, al
+        mov al, 0x0F
+.w:     pop es
+        mov bx, ax
+        cmp byte [cs:lr_act], 0
+        jne .lr
+        xor cx, cx            ; 17h (R) only in stereo: in mono its 128-sample ring is never written and it
+        test byte [0x7500], 1 ; loops stale data = a steady ~344 Hz tone into the FX (hw 0.24)
+        jz .m
+        mov cx, ax
+.m:     pushf
+        cli
+        mov ax, 0x0715
+        out 0x80, ax
+        mov ax, bx
+        out 0x84, ax
+        mov ax, 0x0717
+        out 0x80, ax
+        mov ax, cx
+        out 0x84, ax
+        popf
+        ret
+.lr:    ; live reverse (rosetta_lrev.asm): 15h = the dry input, no send; 17h = the reversed input on the outs
+        push es               ; (IN 50 = 80h a side = the dry, IN 99 = FFh; hw 0.24: 7Fh max was "not wet
+        mov ax, MENU_SEG      ; enough") + the same send into the FX (REV HALL etc.)
+        mov es, ax
+        mov al, [es:LO_isendv + 1]
+        pop es
+        xor ah, ah                ; x the chunk's COMP gain / 256, FFh at most (the chip's volume: no clipping)
+        mul word [cs:lr_cg]
+        mov al, ah
+        mov ah, dl
+        or ah, ah
+        jz .cg
+        mov al, 0xFF
+.cg:    mov ah, al                ; L = R = wet
+        cmp byte [cs:lr_pp], 0
+        je .lb
+        cmp byte [cs:lr_side], 0  ; ping-pong: one side a chunk (lr_fill flips it as the chunk comes out)
+        jne .rg
+        xor al, al
+        jmp .lb
+.rg:    xor ah, ah
+.lb:    mov cx, ax
+        mov al, [cs:lr_tone]      ; tone: the wet voice's low-pass target, 2000h dark .. 7FF0h open (reg 6
+        xor ah, ah                ; word 1, as the OS writes it at 2345:5746; the template has 7FF0h)
+        mov dx, 0x5FF0
+        mul dx
+        mov si, 99
+        div si
+        add ax, 0x2000
+        and ax, 0xFFF0
+        mov si, ax
+        mov al, [cs:lr_dry]       ; DRY: the input voice's level, 99 = 80h a side (stock), only with MONITOR on
+        mov ah, 0x80
+        mul ah
+        mov dl, 99
+        div dl
+        cmp byte [0x7557], 0
+        jne .dr
+        xor al, al
+.dr:    mov ah, al
+        mov di, ax
+        pushf
+        cli
+        mov ax, 0x0715
+        out 0x80, ax
+        mov ax, di
+        out 0x82, ax
+        xor ax, ax
+        out 0x84, ax
+        mov ax, 0x0717
+        out 0x80, ax
+        mov ax, cx
+        out 0x82, ax
+        mov ax, bx
+        out 0x84, ax
+        mov ax, 0x0517            ; reg 5 word 1 = the current cutoff / 2: set it there, no glide
+        out 0x80, ax
+        mov ax, si
+        shr ax, 1
+        out 0x84, ax
+        mov ax, 0x0617
+        out 0x80, ax
+        mov ax, si
+        out 0x84, ax
+        popf
         ret
 
 ; ax = 16-bit random (xorshift)
@@ -465,16 +674,20 @@ mb_addr:  dd 0
 mb_count: dw 0
 mb_t1:    db 0
 mb_res:   dw 0
+mb_res2:  dw 0
 hammer:   dw 0
 pfail:    db 0
 inited:   db 0
 lasttick: db 0
+npass:    dw 0
+ptick:    db 0
+maxgap:   db 0
 dacc:     db 0
 racc:     db 0
 cacc:     db 0
 cbusy:    db 0                ; the last pass had a control on
 nt:       db 0
-par:     times NCC db 0      ; CC 20-31: drift, speed, detune, flt LFO depth, rate, spread, REV x4, LIVE x2
+par:     times NCC db 0      ; CC 20-31: drift, speed, detune, flt LFO depth, rate, spread, REV x4, (30-31 free)
           db 0
 seed:     dw 0xACE1
 dnext:    dw 0
@@ -487,7 +700,8 @@ msg_ok:   db "ROSETTA+ READY  SYNTH CC 20-25  "
 msg_pf:   db "ROSETTA+ READY  PATCH MISMATCH! "
 
 %include "rosetta_rev.asm"
-%include "rosetta_live.asm"
+%include "rosetta_lrev.asm"
+%include "rosetta_rvui.asm"
 %include "hi_fx.inc"
 %include "lo_syms.inc"
 %include "hi_tables.inc"      ; hsin (256 x Q14), dtab (32 x signed detune spread), from mkbaby.py

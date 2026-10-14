@@ -11,6 +11,7 @@ HOME_TXT  equ 0x0483          ; 2D95:0483, 15 chars of main page 0 line 2 (col 0
 EB16      equ 0x84E0          ; EB16 fitted
 KEY_LOAD  equ 0xC7            ; mode key events (0xC0 | code, code -> mode via DS:05FD)
 KEY_EDIT  equ 0xC4            ; EDIT: flips the mode to its edit twin (0 -> 1 = EDIT PROGRAM)
+KEY_FX    equ 0xC3            ; EFFECTS (sampling screen: the MFX page)
 REDRAW    equ 0x0616          ; 0FE4:0616 = far: [738D]=1, redraw the current page, [738D]=0
 
 ; key dispatcher's event read (0FE4:0264, replaces `mov al,[73D4]` + `test al,0C0h`). The caller uses
@@ -36,6 +37,8 @@ key_hook:
         jmp .pass
 .s0:    cmp byte [MODE], MODE_REC     ; REC meter page: left = SETUP
         jne .s1
+        cmp byte [cs:mfx], 0          ; MFX page up: its keys
+        jne .fxk
         call rec_key
         jc .eat
         jmp .pass
@@ -75,7 +78,28 @@ key_hook:
         pop es
         popa
         jmp .eat
-.mode:  cmp al, KEY_REC               ; the REC press that stopped a latched take: not a new REC
+.mode:  cmp byte [MODE], MODE_REC     ; sampling screen: EFFECTS = MFX page (show / next type),
+        jne .mr                       ; home with it up = back to the meter
+        cmp al, KEY_FX
+        jne .mh
+        pusha
+        push es
+        call mfx_key
+        pop es
+        popa
+        jmp .eat
+.mh:    cmp al, 0xC0
+        jne .mr
+        cmp byte [cs:mfx], 0
+        je .mr
+        mov byte [cs:mfx], 0
+        pusha
+        push es
+        call 0x0FE4:REDRAW
+        pop es
+        popa
+        jmp .eat
+.mr:    cmp al, KEY_REC               ; the REC press that stopped a latched take: not a new REC
         jne .m0
         call rec_eat
         jc .eat

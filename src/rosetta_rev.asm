@@ -97,16 +97,16 @@ rev_params:
         jbe .t2               ; 0x8000 played junk after the first lap)
         mov ax, 60
 .t2:    mov [cs:rp_sl], ax
-        xor al, al
-        cmp byte [cs:rev_tab + bx + 2], 0
-        je .f
-        mov ax, [es:LO_pfb]       ; FEEDBACK 0-99 -> send 0-247
+        mov ax, [es:LO_pfb]       ; FEEDBACK 0-99 -> send 0-247 (0.24: every REV type, the REV menu's FB)
         mov cl, 5
         mul cl
         shr ax, 1
-.f:     mov [cs:rp_fb], al
-        mov al, [cs:rev_tab + bx + 3]
-        mov [cs:rp_oct], al
+        mov [cs:rp_fb], al
+        xor al, al                ; octave up = the REV menu's OCT +1
+        cmp byte [cs:lr_oct], 1
+        jne .f
+        inc al
+.f:     mov [cs:rp_oct], al
 .pd:    pop es
         ret
 
@@ -205,7 +205,7 @@ rev_copy:
         mov cx, SL
         mov dx, LABBUF
         xor di, di
-        call 0x2345:0x1AA0    ; delay line -> 4100:0000
+        call 0x2345:0x1AA0    ; delay line -> LABBUF:0000
         push ds
         mov ax, LABBUF
         mov ds, ax
@@ -230,7 +230,7 @@ rev_copy:
         mov cx, SL
         mov dx, LABBUF
         xor si, si
-        call 0x2345:0x1AC8    ; 4100:0000 -> buffer
+        call 0x2345:0x1AC8    ; LABBUF:0000 -> buffer
         pop word [0x78E6]
         pop word [0x78E4]
         ret

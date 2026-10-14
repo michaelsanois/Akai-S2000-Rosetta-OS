@@ -66,14 +66,11 @@ def bank():
     ]
     hall = from_json("hall")
     return [p + (None,) for p in stock] + [
-        # reverse delays: each chunk of the delay line plays back flipped (TIME scales the chunk)
+        # reverse delays: each chunk of the delay line plays back flipped (TIME scales the chunk). One REVERSE
+        # since 0.24 (the user: SHRT / LONG / ECHO / OCT / PING are its knobs now: length, FB, OCT, PING on the
+        # MFX REV menu, src/rosetta_rvui.asm) + REV HALL
         ("REVERSE", [], [], (34, None, 0)),       # 0.39 s
-        ("REV SHRT", [], [], (14, None, 0)),      # 0.16 s
-        ("REV LONG", [], [], (60, None, 0)),      # 0.70 s (max: the loop length must stay < 0x8000)
-        ("REV ECHO", [], [], (34, 60, 0)),        # repeats, each one flipped again (FEEDBACK)
-        ("REV OCT", [], [], (34, None, 1)),       # an octave up, twice
         ("REV HALL", hall, [], (40, None, 0)),    # the hall's tail flipped: swells into the note
-        ("REV PING", [(1, 0.5, L, T2), (2, 0.5, R, 2 * T2), (3, 0.45, FB, 2 * T2)], [], (34, None, 0)),
     ]
 
 
