@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.20"
+VERSION = "0.21"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -145,7 +145,7 @@ PATCHES = [
     # wait (2345:27EB `call 27F8` + `jb 27F7`) -> MENU_SEG:0021 (watches the key, ends the take early)
     (lin(SEG_MAIN, 0x3AA0), bytes.fromhex("A0D473C606D47300"), bytes.fromhex("9A1E00") + MENU_SEG.to_bytes(2, "little") + bytes.fromhex("909090")),
     (lin(0x2345, 0x27EB), bytes.fromhex("E80A007207"), bytes.fromhex("9A2100") + MENU_SEG.to_bytes(2, "little")),
-    # data-key auto-repeat (ticks ~2.04 ms: TCU ch0 4087 @ 2 MHz): first repeat 1000 -> 300,
+    # data-key auto-repeat (ticks 0.511 ms on hw, measured 2026-10-14; TCU ch0 4087 @ 8 MHz): first repeat 1000 -> 300,
     # interval start 200 -> 80, floor 40 -> 10 (step stays 10, so it lands exactly on the floor)
     (0x23C49, (1000).to_bytes(2, "little"), (300).to_bytes(2, "little")),
     (0x23C56, bytes([200]), bytes([80])),

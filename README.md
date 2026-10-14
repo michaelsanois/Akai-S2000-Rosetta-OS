@@ -53,7 +53,7 @@ Then:
 
 - **Reverbs** are multi-tap feedback loops designed offline in a Python model of the engine (`tools/fxdesign.py`),
   with exact Q15 gains (the OS's own 8-bit levels halve the decay).
-- **Chorus / flanger** sweep tap delays from an LFO every 2 ms tick. Two neighbouring taps crossfade for
+- **Chorus / flanger** sweep tap delays from an LFO every tick (0.51 ms). Two neighbouring taps crossfade for
   fractional delays, so the sweep is smooth with no clicks.
 - **ECHO / PINGPONG** are plain taps plus feedback (375 ms echo, 300/600 ms ping-pong).
 

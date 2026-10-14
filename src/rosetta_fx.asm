@@ -7,7 +7,7 @@
 ; '>' marks the selected field. Soft keys 0x40/0x41 (r2c1/r5c1) move it, the inner DATA wheel ([73A5]) and
 ; the +-1 step ([73AC]) and soft keys 0x44-0x47 change it. EFFECTS again = next type.
 
-TICK      equ 0x73DA          ; ++ every ~2.04 ms by int 9 (0FE4:0B92)
+TICK      equ 0x73DA          ; ++ every 0.511 ms by int 9 (0FE4:0B92), measured on hw (not 2.04 ms)
 KEYEV     equ 0x73D4          ; key event: 0x40 | n = soft key n pressed, 0xC0 | n = mode key, 0x60 = release
 WHEEL     equ 0x73A5          ; data wheel delta (int 9 adds it; stock consumer 0FE4:04A6)
 INCDEC    equ 0x73AC          ; +1 / -1 step from port 0x40 bits 5/2 with slow repeat (int 9; stock: value step, 0FE4:0468)

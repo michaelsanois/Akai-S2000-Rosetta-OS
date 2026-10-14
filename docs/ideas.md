@@ -47,7 +47,7 @@ songs/setups (user OK'd).
 | 2 | **Freeze / live looper** | feedback 1.0 + voice sends off = the 1.49 s line loops forever; a button punches in/out | small |
 | 3 | **Resonator** (Rings-lite) | short feedback taps tuned to the last MIDI note(s): plucked/bowed strings from any sample | small |
 | 4 | **Unison / detune / supersaw, round-robin, velocity layers** | note-on hook (2B9D:016C): stack detuned voices, rotate zones per hit | small-med |
-| 5 | **Arp / chord memory / tempo-synced echo** | note-on hook + the 2 ms tick, MIDI clock in | med |
+| 5 | **Arp / chord memory / tempo-synced echo** | note-on hook + the 0.51 ms tick, MIDI clock in | med |
 | 6 | **Wavetable / transwave synth** | rewrite each voice's loop start from the tick (LFO, envelope, mod wheel): Ensoniq-style wave scanning through a sample; CPU-generated single cycles (saw/PWM/formant, U-110 waves) | med |
 | 7 | **Filter LFO / filter FM / reso sweeps** | per-voice cutoff from the tick on top of the hardware envelope | small |
 | 8 | **Auto-chop** (MPC) | after a take, find transients, make N keygroups across the keys | med |
@@ -59,7 +59,7 @@ songs/setups (user OK'd).
 ## Synth layer (user, 2026-10-13: "we don't need many true voices, fake LA, fake analog, wavetable with a
 ## software backend so it's easy to sequence")
 Principle: the PC does the heavy DSP offline (render waves, tables, multisamples), the S2000 plays them with
-its 8-point sinc voices, and Rosetta moves the voice registers live from the 2 ms tick. 1 note = 1 voice
+its 8-point sinc voices, and Rosetta moves the voice registers live from the 0.51 ms tick. 1 note = 1 voice
 wherever possible.
 
 | Idea | How (1 voice unless said) |
@@ -75,3 +75,13 @@ wherever possible.
 | **Wave lab** (PC) | draw/import/additive/FM-render single cycles and tables, send over SysEx or a disk image |
 | **Easy to sequence** | every synth/FX param on a MIDI CC (NRPN for fine), program change = instant patch, MIDI clock sync for LFOs/arp/echo; PC editor over SysEx; Cubase bridge integration |
 | **SYNTH tab** | a new area menu per program: OSC (wave/table/pos), FILTER (cutoff/reso/env/LFO), AMP, MOD (LFO/env -> pos/pitch/cutoff), UNISON, FX send |
+
+### 0.20/0.21 on hw (2026-10-14)
+- 0.19 loader CONFIRMED ("it loaded"). 0.20 SYNTH basics measured over MIDI + OCTA (BEEP 1K / NOISE BURST notes):
+  DETUNE 127 = +19.3 c, 64 = +9.3 c on the audition voice (31); DRIFT 127/127 wanders -15..+13 c; all CCs 0 =
+  exactly 1000.00 Hz, so untouched. 0.21 filter LFO (dips from the set cutoff, depth x16) sweeps NOISE highs from
+  +13 dB down to -15 dB (64) / -24 dB (127). An open filter's top ~800 log steps are inaudible.
+- **The OS tick [73DA] is 0.511 ms on hw (1957 Hz), not 2.04 ms.** Rescaled the hi timing. To check: rosetta_rec's
+  eat window (120 ticks = 61 ms, meant as ~0.3 s), and the FX LFO and data-key repeat values were tuned by ear.
+- tools/hiload.py hot-loads build/rosetta_hi.bin into a running S2000 over SysEx (no reboot): parks the loader tick,
+  uploads, re-points the OS hooks (header slots +C/+F/+12), and the new blob's tick re-runs `apply`.
