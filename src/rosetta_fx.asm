@@ -11,6 +11,8 @@ TICK      equ 0x73DA          ; ++ every 0.511 ms by int 9 (0FE4:0B92), measured
 KEYEV     equ 0x73D4          ; key event: 0x40 | n = soft key n pressed, 0xC0 | n = mode key, 0x60 = release
 WHEEL     equ 0x73A5          ; data wheel delta (int 9 adds it; stock consumer 0FE4:04A6)
 INCDEC    equ 0x73AC          ; +1 / -1 step from port 0x40 bits 5/2 with slow repeat (int 9; stock: value step, 0FE4:0468)
+ROCKER    equ 0x73A4          ; the big knob's rocker ring (panel, added at 2345-side 1BD52 with the wheel): half push +-1,
+                              ; full push +-5 = a jump. Stock: the cursor / a list 1 or 5 at a time (0FE4:0478, 1F50:05CE)
 FXPAGE    equ 0x0C
 NFIELDS   equ 5
 F_TYPE    equ 0
@@ -95,6 +97,9 @@ fx_poll:
         cmp byte [PAGE], FXPAGE
         jne .r
 .ok:    xor al, al
+        xchg al, [ROCKER]     ; (taken on our pages: the stock page underneath must not move its cursor)
+        or al, al
+        jnz .rk
         xchg al, [WHEEL]
         or al, al
         jnz .go
@@ -123,6 +128,39 @@ fx_poll:
         pop es
         popa
 .r:     ret
+; rocker al: half push = the next / previous knob, full push = a jump (REV menu: a page; area menus: 5 entries,
+; as stock lists)
+.rk:    pusha
+        push es
+        cmp byte [cs:mfx], 0
+        jne .k0
+        cmp byte [cs:ctx], CTX_MENU
+        jne .k0
+        call pm_move          ; area menu: +-1 / +-5 entries
+        jmp .gd
+.k0:    mov dl, 9             ; the REV menu's keys: 9 / 8 next / previous knob over the pages, 5 / 4 PAGE
+        or al, al
+        jns .k1
+        mov dl, 8
+        neg al
+.k1:    cmp al, 5
+        jb .k2
+        sub dl, 4
+.k2:    mov al, dl
+        push ax
+        mov ah, 1
+        call hi_rv
+        jc .k3
+        add sp, 2
+        call fx_tstep
+        jmp .gd
+.k3:    pop ax                ; the FX page: the cursor
+        test al, 1
+        jz .k4
+        call fx_key.right
+        jmp .gd
+.k4:    call fx_key.left
+        jmp .gd
 
 ; ax = signed delta for the selected field
 fx_change:

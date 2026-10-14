@@ -19,7 +19,8 @@
 ;   attack /  the wet voice's own envelope per chunk: a ramp up from the chunk's start, a ramp down to its end
 ;   release   (free: the chip does it; fired when ch3 reaches the chunk, ~a main-loop pass late at most)
 ;   comp      per-chunk leveling on the wet voice's volume: each chunk's peak is taken as it is recorded and the
-;             chunk plays back towards one level (up to 4x up, any down), blended by COMP; no sample clipping
+;             chunk plays back towards one level (up to 4x up, any down), blended by COMP; no sample clipping.
+;             Gate (0.25): a chunk quieter than -18 dB gets less boost, down to none at -30 dB and silence below
 ;   feedback  the history takes L + FB x R: a repeat comes back reversed again
 ;   ping-pong each chunk on the other side; tone = the wet voice's own low-pass
 ;   start/end a loop inside the reversed chunk, like a sample's loop points: only START..END % plays, round and
@@ -781,12 +782,14 @@ lr_chunk:
         mov word [cs:lr_pka], 0
         cmp ax, 0x1000
         jae .c1
-        mov ax, 0x1000
+        shr ax, 1                 ; 0.25 gate: under 1000h (-18 dB) the gain goes down with the peak (4x at
+        shr ax, 1                 ; 1000h, 1x at 400h, 0 at 0): hiss between notes is cut, not pumped up 4x
+        jmp .c2
 .c1:    mov cx, ax
         mov dx, 0x0040
         xor ax, ax
         div cx                    ; 4000h x 256 / peak
-        sub ax, 256
+.c2:    sub ax, 256
         mov cl, [cs:lr_comp]
         xor ch, ch
         imul cx
@@ -901,19 +904,19 @@ lr_toend:
         ret
 
 ; knobs (the MFX page / lab set them)
-lr_bpm:   db 0                ; tempo; 0 = FREE: LEN ms
+lr_bpm:   db 92               ; tempo (boot: the user's 92); 0 = FREE: LEN ms
 lr_lenms: dw 390              ; FREE length, ms (50-900)
-lr_div:   db 1                ; lr_divm index: 1/16, 1/8, dotted 1/8, 1/4, dotted 1/4
+lr_div:   db 3                ; (boot 1/4) lr_divm index: 1/16, 1/8, dotted 1/8, 1/4, dotted 1/4
 lr_sw:    db 0                ; swell 0-99
 lr_tone:  db 99               ; 0 dark - 99 open
-lr_oct:   db 0                ; -1 / 0 / +1
+lr_oct:   db 1                ; -1 / 0 / +1 (boot +1)
 lr_pp:    db 0                ; ping-pong
 lr_att:   db 0                ; attack 0-99
 lr_rel:   db 0                ; release 0-99
 lr_comp:  db 0                ; comp 0-99
-lr_st:    db 0                ; start 0-99 (% into the reversed chunk)
+lr_st:    db 3                ; (boot 3) start 0-99 (% into the reversed chunk)
 lr_dry:   db 99               ; the dry input's level 0-99 (99 = stock)
-lr_en:    db 99               ; end 0-99 (last %)
+lr_en:    db 75               ; (boot 75) end 0-99 (last %)
 lr_divm:  db 4, 8, 12, 16, 24 ; in sixteenths
 
 lr_act:   db 0

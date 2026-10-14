@@ -65,7 +65,8 @@ class LCD:
 class FDC765:
     """Minimal uPD765 on 0x20 (MSR) / 0x22 (data). Without a disk image, commands complete with 'not ready'.
     With one (raw Akai HD image: 1 KB blocks, block = C*20 + H*10 + R-1), read data moves the sector(s) by
-    DMA channel 1 (done by S2K, see `pending_read`) and every seek/recalibrate/read raises IR3."""
+    DMA channel 1 (done by S2K, see `pending_read`) and every seek/recalibrate/read raises IR3. Write data
+    (0.25, the knob save) does the same the other way (`pending_write`) into the image, a bytearray."""
     CMDLEN = {0x03: 3, 0x04: 2, 0x07: 2, 0x08: 1, 0x0F: 3, 0x0A: 2, 0x0D: 6, 0x06: 9, 0x05: 9, 0x02: 9,
               0x11: 9, 0x19: 9, 0x1D: 9, 0x09: 9, 0x0C: 9, 0x10: 1, 0x12: 2, 0x13: 4, 0x0E: 1}
 
@@ -76,7 +77,9 @@ class FDC765:
         self.disk = disk
         self.irq = False              # IR3 request for S2K to deliver
         self.pending_read = None      # (C, H, R, N, EOT) for S2K to run through DMA channel 1
+        self.pending_write = None
         self.reads = 0
+        self.writes = []              # blocks written
 
     def __getstate__(self):           # snapshots: leave the (big, constant) image out
         d = dict(self.__dict__)
@@ -117,6 +120,8 @@ class FDC765:
             self.res = [0x80] if op == 0x10 else [0] * 10
         elif op == 0x06 and self.disk is not None:   # read data: S2K moves the bytes, then results
             self.pending_read = (c[2], c[3], c[4], c[5], c[6], c[1])
+        elif op == 0x05 and self.disk is not None:   # write data: the same through DMA channel 1, to the image
+            self.pending_write = (c[2], c[3], c[4], c[5], c[6], c[1])
         else:                                # read/write/format/read id: abnormal term, not ready
             self.res = [0x48 | drv, 0x00, 0x00, c[2] if len(c) > 2 else 0, 0, 1, 2]
 
@@ -154,7 +159,7 @@ class S2K:
         self.mu.mem_write(0, os_bin)
         self.lcd = LCD()
         if disk is None and os.environ.get("S2K_DISK"):
-            disk = open(os.environ["S2K_DISK"], "rb").read()   # raw disk image in the floppy drive
+            disk = bytearray(open(os.environ["S2K_DISK"], "rb").read())   # raw disk image in the floppy drive
         self.disk = disk
         # S2K_DISK_AT=N: the disk goes in only after N blocks (emulation: notes don't play after the OS's own
         # boot-time catalogue read of an emulated disk, so tests insert it just before the hi loader runs)
@@ -242,6 +247,9 @@ class S2K:
             if self.fdc.pending_read:
                 self._fdc_read(*self.fdc.pending_read)
                 self.fdc.pending_read = None
+            if self.fdc.pending_write:
+                self._fdc_write(*self.fdc.pending_write)
+                self.fdc.pending_write = None
         elif port in (0xC002, 0xC004, 0xC006):
             ch = self.ports.get(0xC001, 0) & 3
             self.dma.setdefault(ch, {})[{0xC002: "n", 0xC004: "lo", 0xC006: "hi"}[port]] = value
@@ -261,10 +269,27 @@ class S2K:
             blk = c * 20 + h * 10 + (r - 1)
             data = self.disk[blk * size:(blk + 1) * size] if size == 1024 else bytes(size)
             take = min(left, size)
-            self.mu.mem_write(addr, data[:take])
+            self.mu.mem_write(addr, bytes(data[:take]))
             addr, left = addr + take, left - take
             r += 1
         self.fdc.reads += 1
+        self.fdc.res = [hdus & 7, 0x00, 0x00, c, h, r, n]
+        self.fdc.irq = True
+
+    def _fdc_write(self, c, h, r, n, eot, hdus):
+        """Write data: DMA channel 1's buffer into sectors r.. of the image, until its count runs out."""
+        d = self.dma.get(1, {})
+        addr = ((d.get("hi", 0) & 0x0F) << 16) | (d.get("lo", 0) & 0xFFFF)
+        left = (d.get("n", 0) & 0xFFFF) + 1
+        size = 128 << n
+        assert size == 1024 and isinstance(self.fdc.disk, bytearray), "write: 1 KB sectors, bytearray image"
+        while left > 0:
+            blk = c * 20 + h * 10 + (r - 1)
+            take = min(left, size)
+            self.fdc.disk[blk * size:blk * size + take] = bytes(self.mu.mem_read(addr, take))
+            self.fdc.writes.append(blk)
+            addr, left = addr + take, left - take
+            r += 1
         self.fdc.res = [hdus & 7, 0x00, 0x00, c, h, r, n]
         self.fdc.irq = True
 

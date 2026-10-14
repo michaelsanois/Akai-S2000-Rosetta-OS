@@ -2,9 +2,12 @@
 ; rosetta_hi.asm. The menu code only forwards (src/rosetta_fx.asm hi_rv, far call to header +1B, DS = 0):
 ;   ah = 0 draw (al != 0: to the LCD too), 1 = soft key al, 2 = value step al (wheel, signed)
 ;   CF = 1: not a REV type (the menu code does its FX page); else al = a TYPE step for the menu code to make
-; Pages (PAGE up / down), knob (F1 / F2), value (wheel, GROUP up / down), EFFECTS = next type:
+; Pages (PAGE up / down), knob (F1 / F2), value (wheel, GROUP up / down), EFFECTS = next type. The big knob's
+; rocker (0.25, sent as keys 8 / 9 / 4 / 5): half push = previous / next knob straight over the pages, full = a page:
 ;   >REVERSE >IN  70    >FB   35>ATK  40    >STR   0>END  99    >PNG OFF>DRY  99
-;   >1/8     >BPM  92   >REL  30>CMP  60    >OCT   0>TON  99    >SWL   0
+;   >1/8     >BPM  92   >REL  30>CMP  60    >OCT   0>TON  99    >SWL   0>SAV  OK
+; SAV (0.25): any value step writes the knobs to the boot floppy (src/rosetta_knobs.asm); OK / ERR stays until
+; the cursor or page moves.
 ; DIV is LEN (ms, 10 ms a step) while BPM is FREE (one below the slowest tempo).
 RV_NP     equ 4
 K_NONE    equ 0
@@ -16,6 +19,7 @@ K_DIV     equ 5
 K_BPM     equ 6
 K_OCT     equ 7
 K_ONOFF   equ 8
+K_SAV     equ 9                   ; save the knobs (rosetta_knobs.asm)
 RVF       equ 10                  ; field: pos (line x 16 + col), kind, var, min, max, label[4]
 
 rv_ui:
@@ -25,6 +29,7 @@ rv_ui:
         push si
         push di
         push es
+        call rv_fbsync
         push ax
         call rv_isrev
         pop ax
@@ -89,18 +94,58 @@ rv_key:
         je .dn
         cmp al, 7
         je .up
+        cmp al, 8
+        je .prev
+        cmp al, 9
+        je .next
         xor al, al
         ret
+.next:  mov byte [cs:kn_st], 0xFF ; rocker: the next knob, onto the next page after the last
+        mov cx, 4 * RV_NP
+.n1:    mov al, [cs:rv_cur]
+        inc al
+        cmp al, 4
+        jb .n2
+        xor al, al
+        mov ah, [cs:rv_page]
+        inc ah
+        cmp ah, RV_NP
+        jb .n3
+        xor ah, ah
+.n3:    mov [cs:rv_page], ah
+.n2:    mov [cs:rv_cur], al
+        call rv_fld
+        cmp byte [cs:si + 1], K_NONE
+        loope .n1
+        jmp .draw
+.prev:  mov byte [cs:kn_st], 0xFF ; ... the previous one
+        mov cx, 4 * RV_NP
+.q1:    mov al, [cs:rv_cur]
+        dec al
+        jns .q2
+        mov al, 3
+        mov ah, [cs:rv_page]
+        dec ah
+        jns .q3
+        mov ah, RV_NP - 1
+.q3:    mov [cs:rv_page], ah
+.q2:    mov [cs:rv_cur], al
+        call rv_fld
+        cmp byte [cs:si + 1], K_NONE
+        loope .q1
+        jmp .draw
 .dn:    mov al, -1
         jmp rv_step
 .up:    mov al, 1
         jmp rv_step
-.pdn:   mov al, [cs:rv_page]
+.pdn:   mov byte [cs:kn_st], 0xFF
+        mov al, [cs:rv_page]
         dec al
         jns .p
         mov al, RV_NP - 1
         jmp .p
-.pup:   mov al, [cs:rv_page]
+.pup:   mov byte [cs:kn_st], 0xFF
+        mov al, [cs:rv_page]
         inc al
         cmp al, RV_NP
         jb .p
@@ -108,7 +153,8 @@ rv_key:
 .p:     mov [cs:rv_page], al
         call rv_fix               ; the cursor onto a knob that exists
         jmp .draw
-.left:  mov cx, 4
+.left:  mov byte [cs:kn_st], 0xFF
+        mov cx, 4
 .l1:    mov al, [cs:rv_cur]
         dec al
         and al, 3
@@ -117,7 +163,8 @@ rv_key:
         cmp byte [cs:si + 1], K_NONE
         loope .l1
         jmp .draw
-.right: mov cx, 4
+.right: mov byte [cs:kn_st], 0xFF
+        mov cx, 4
 .r1:    mov al, [cs:rv_cur]
         inc al
         and al, 3
@@ -151,7 +198,19 @@ rv_step:
         jne .v
         mov al, dl                ; TYPE: the menu code steps it and draws again
         ret
-.v:     call rv_get               ; ax = value (signed for OCT)
+.v:     cmp bl, K_SAV
+        jne .v2
+        cmp byte [cs:kn_st], 0    ; SAV: once (OK shows until the cursor moves: the wheel sends a few steps)
+        je .vr
+        mov byte [cs:kn_st], 0xFE
+        mov al, 1                 ; "..." while the floppy works
+        call rv_draw
+        call kn_save
+.vr:    mov al, 1
+        call rv_draw
+        xor al, al
+        ret
+.v2:    call rv_get               ; ax = value (signed for OCT)
         mov cl, dl
         mov ch, 0
         or cl, cl
@@ -323,6 +382,8 @@ rv_one:
         inc di
         loop .lb
         pop si
+        cmp bl, K_SAV
+        je .sav
         call rv_get
         cmp bl, K_OCT
         je .oct
@@ -344,6 +405,22 @@ rv_one:
         mov byte [cs:di + 2], '1'
         jns .r
         mov byte [cs:di + 1], '-'
+        ret
+.sav:   mov al, [cs:kn_st]
+        mov word [cs:di], '  '
+        mov byte [cs:di + 2], ' '
+        cmp al, 0xFF
+        je .r
+        mov word [cs:di], '..'
+        mov byte [cs:di + 2], '.'
+        cmp al, 0xFE
+        je .r
+        mov word [cs:di], ' O'
+        mov byte [cs:di + 2], 'K'
+        or al, al
+        jz .r
+        mov word [cs:di], 'ER'
+        mov byte [cs:di + 2], 'R'
         ret
 .onoff: mov word [cs:di], 'OF'
         mov byte [cs:di + 2], 'F'
@@ -441,4 +518,4 @@ rv_fields:
         FLD 0, K_ONOFF, lr_pp, 0, 1, "PNG "
         FLD 8, K_NUM, lr_dry, 0, 99, "DRY "
         FLD 16, K_NUM, lr_sw, 0, 99, "SWL "
-        FLD 24, K_NONE, 0, 0, 0, "    "
+        FLD 24, K_SAV, 0, 0, 0, "SAV "

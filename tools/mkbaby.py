@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.24"
+VERSION = "0.25"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -213,7 +213,7 @@ def build_hi(build_dir):
     pre = os.path.join(build_dir, "hi_map_pre.inc")
     with open(pre, "w") as f:
         f.write("[map symbols " + os.path.join(build_dir, "rosetta_hi.map") + "]" + chr(10))
-    blob = nasm_blob(build_dir, "rosetta_hi.asm", [f"-DHI_VERSION={vw}", "-P", pre])
+    blob = nasm_blob(build_dir, "rosetta_hi.asm", [f"-DHI_VERSION={vw}", f"-DHI_BLOCK={HI_BLOCK}", "-P", pre])
     assert blob[:4] == b"RSHI" and len(blob) <= 0x4000, "hi code must stay below 0x44000 (live reverse history + LABBUF, src/rosetta_lrev.asm)"
     return blob + bytes(-len(blob) % 1024)
 

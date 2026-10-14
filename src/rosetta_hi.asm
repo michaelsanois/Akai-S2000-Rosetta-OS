@@ -51,6 +51,7 @@ hi_init:
         push es
         call apply
         call hi_setup
+        call kn_load          ; the knobs saved on the floppy (REV menu SAV)
         mov byte [cs:inited], 1
         mov si, msg_ok
         cmp byte [cs:pfail], 0
@@ -213,7 +214,8 @@ hi_tick:
         mov byte [cs:inited], 1   ; sent in over SysEx: hook the OS ourselves
         call apply
         call hi_setup
-.go:    inc word [cs:npass]       ; lab: passes + the longest gap in OS ticks (how often the FX LFO runs)
+.go:    call rv_fbsync
+        inc word [cs:npass]       ; lab: passes + the longest gap in OS ticks (how often the FX LFO runs)
         call 0x2345:0x0A47
         mov ah, al
         sub ah, [cs:ptick]
@@ -702,6 +704,10 @@ msg_pf:   db "ROSETTA+ READY  PATCH MISMATCH! "
 %include "rosetta_rev.asm"
 %include "rosetta_lrev.asm"
 %include "rosetta_rvui.asm"
+%include "rosetta_knobs.asm"
 %include "hi_fx.inc"
 %include "lo_syms.inc"
 %include "hi_tables.inc"      ; hsin (256 x Q14), dtab (32 x signed detune spread), from mkbaby.py
+
+        align 1024, db 0
+kn_blk:   times 1024 db 0     ; the saved knobs: its own floppy block, loaded with the code (rosetta_knobs.asm)

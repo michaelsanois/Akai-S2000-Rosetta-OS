@@ -32,6 +32,9 @@ there's space to build much more. Nothing touches ROM or flash: boot your stock 
 | **EFFECTS page**: `>HALL >WET 50` / `>T100 >F100 >R100` (type, wet, time/size, feedback, LFO rate) | ✅ on hardware |
 | **MFX = input FX**: EFFECTS on the sampling screen opens the same page for the live input (WET becomes IN) | ✅ on hardware (0.24) |
 | **LIVE REVERSE** on the input, with its own menu: BPM + note division or length in ms, feedback, attack, release, chunk leveling, loop start/end inside the chunk, octave up/down, tone, ping-pong, dry level | ✅ on hardware (0.24) |
+| **SAV**: the REV menu's knobs (plus FB and IN) saved to the boot floppy, back after a power cycle. FB is remembered per REV type | emulator ✅, hardware test next (0.25) |
+| **COMP gate**: chunks quieter than -18 dB get less boost, none in silence, so hiss between notes is cut instead of pumped up | emulator ✅ (0.25) |
+| **The rocker** (the big knob's outer ring) on Rosetta pages: half push = next / previous knob, full push = a jump (a page, or 5 menu entries, like stock lists) | emulator ✅ (0.25) |
 | **HOME hub**: main screen line 2 = `LOAD  HALL  EDIT`, F1 / F2 under the screen jump to LOAD and EDIT | ✅ on hardware |
 | **Back one level**: SINGLE (the home key) steps back (page → top of the mode → HOME) instead of always jumping home | ✅ on hardware |
 | **Area menus**: EDIT PROGRAM (8 groups), EDIT SAMPLE (6) and GLOBAL (4) open a menu, essentials first. PAGE stays inside the group, GROUP jumps to the next one | EDIT PROGRAM ✅ on hardware (0.13), the rest emulator ✅ |
@@ -80,14 +83,19 @@ Panel names: **F1 / F2** = the two buttons under the screen, **SINGLE** = the ho
   the input goes into the effect. EFFECTS again = next type, SINGLE = back to the meter. You hear it live; the take
   still records dry. One delay engine, so the type, time and feedback are shared with the notes' FX page.
 - **Live reverse**: pick **REVERSE** or **REV HALL** on the MFX page and turn IN up. The page becomes the REV menu:
-  **PAGE ▲▼** = page, **F1 / F2** = knob, **wheel** or **GROUP ▲▼** = value.
+  **PAGE ▲▼** = page, **F1 / F2** = knob, **wheel** or **GROUP ▲▼** = value. The **rocker** walks the knobs
+  straight through all four pages (full push = a whole page).
 
 | Page | Knobs |
 |---|---|
 | 1 | TYPE · **IN** (wet: 50 = as loud as the dry, 99 = full) · **DIV** (1/16, 1/8, dotted 1/8, 1/4, dotted 1/4), or **LEN** in ms when BPM is FREE · **BPM** (40-240, below 40 = FREE) |
-| 2 | **FB** feedback (repeats come back reversed again) · **ATK** / **REL** (each chunk swells in / fades out) · **CMP** (chunk leveling: quiet chunks up, loud ones down, no clipping) |
+| 2 | **FB** feedback (repeats come back reversed again) · **ATK** / **REL** (each chunk swells in / fades out) · **CMP** (chunk leveling: quiet chunks up, loud ones down, no clipping; below -18 dB it gates instead, so hiss isn't pumped up) |
 | 3 | **STR** / **END** (a loop inside the reversed chunk, like a sample's loop points: stutters) · **OCT** (-1 / 0 / +1) · **TON** (dark to open) |
-| 4 | **PNG** ping-pong (chunks alternate left / right) · **DRY** (the input's own level) · **SWL** (soft chunk edges) |
+| 4 | **PNG** ping-pong (chunks alternate left / right) · **DRY** (the input's own level) · **SWL** (soft chunk edges) · **SAV** (turn the wheel once: `...` then `OK`; up to ~5 s while the floppy spins up) |
+
+  SAV writes one 1 KB block of the boot floppy (inside the OS file, so the OS's own SAVE never touches it); the
+  knobs come back at the next boot. It only writes when you ask. `tools/stick.py` carries saved knobs over when a
+  new build goes on the stick.
 
   Long chunks and octave up store the input at 22 or 11 kHz, so the reversed copy gets darker (the dry never
   does). While live reverse runs, the monitor is ~12 ms late (stock: ~3 ms).
@@ -128,7 +136,8 @@ python -I tools/mkbaby.py build/s2kos2.img template.hfe build/S2K_ROSETTA
 ```
 
 1. Copy `build/S2K_ROSETTA.hfe` to the Gotek's USB stick as `DSKA0000.hfe`, with `FF.CFG` set to `nav-mode = indexed`.
-   Keep **one** image on the stick.
+   Keep **one** image on the stick. To update a stick that has saved knobs on it, use
+   `python -I tools/stick.py build/S2K_ROSETTA <drive>` instead: it keeps them.
 2. Boot the S2000 from the Gotek. The dragon flies, then the HOME screen.
 3. The disk also carries a small **test kit** (CLICK, NOISE BURST, BEEP 1K) to LOAD from the same floppy.
    It's built with the akaitool package from [AKAI-CD-ISO-MAKER](https://github.com/yuyoi/AKAI-CD-ISO-MAKER)
@@ -166,6 +175,7 @@ The menu code (`src/rosetta_menu.asm` and friends, 5.6 KB) is full, so new featu
   keys (`seq`, `fxcheck`, `pagewalk`, `isrcheck`, ...). Needs `unicorn` and `capstone`.
 - `tools/x86dis.py`, `tools/sweep.py`: V53 disassembly helpers (code map, port map, xrefs).
 - `tools/td0.py`, `tools/hfe.py`: Teledisk and HFE converters (HFE overlay with CRC check on read-back).
+- `tools/stick.py`: writes a build to the Gotek stick (checks for `FF.CFG`), keeping the knobs saved on it.
 - `docs/FINDINGS.md`: the lab notebook (hardware map, code map, sound engine, build history).
 - `docs/menu_design.md`: the menu redesign plan. `docs/pagewalk.txt`, `docs/ui_tree.txt`: stock UI maps.
 
@@ -176,7 +186,8 @@ It boots, and the FX, menus, sampling and synth layer work on a real S2000. Expe
 **Planned:**
 - A SYNTH page on the front panel (the CCs stay for sequencing), unison, wavetable scanning (move a voice's loop
   through a table), fake-analog and fake-LA waves.
-- Live reverse: follow MIDI clock, a lower-latency fill from the timer interrupt, keep the knobs over a reboot.
+- Live reverse: follow MIDI clock, a lower-latency fill from the timer interrupt.
+- A tiny built-in synth / rompler: a few waveforms that play with no disk loaded.
 - Freeze / resonator / shimmer effects, tempo-synced echo, denser and modulated reverbs.
 - Quick jobs (load → audition → assign in a couple of presses), stereo hold-to-record.
 

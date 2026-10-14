@@ -174,6 +174,20 @@ Per-voice registers: 0 start, 1 end + rate (4.12 fixed point vs 44.1k), 2 loop, 
   that on the running reverse voice and the wet stayed dead until the input restarted.
 - Volume step 7FFFh never climbed on hw; Rosetta caps steps at 1388h (the OS's own for the monitor voice).
 
+## Floppy write, the rocker (0.25, emulator-checked 2026-10-14)
+- **Raw sector write** = the raw read `1F50:00BB` (CL cyl, DH head, DL sector 1-based, CH 3 = 1 KB, BX bytes,
+  ES:BP buffer, AL 0 = OK) with two immediates flipped for the call: `1F50:0158` DMA mode 4 → 8 (memory to the
+  FDC) and `1F50:0176` FDC block 6628 → 6631. The OS's own sector write (0FE4:A185) uses the same pair: `mov bh,8`
+  + `lcall 1F50:01C8` (DMA ch1 setup), `mov si,6631` + `lcall 2BD5:0C2E` (send the FDC command).
+- FDC command blocks in RAM: 6628 = `04 07 01 09 46` (READ DATA, MFM), 6631 = `04 07 01 09 45` (WRITE DATA). Both
+  share the tail at 662D (N, EOT, GPL, DTL); the raw read sets EOT 63h and ends each sector by the DMA count (TC).
+- Rosetta's knob block = the last 1 KB of the hi code, so it sits inside the OS file's FAT chain (the OS never
+  allocates it) and the loader reads it with the code. The emulator's FDC model now does WRITE DATA too.
+- **The rocker** (the big knob's outer ring) = `[73A4]`, filled from the panel buffer at 1BD3E (`add [73A4],al`
+  beside the wheel's `add [73A5],ah`). Half push = ±1, full push = ±5. Stock (0FE4:0478): ±1 = cursor step
+  (`2345:0258`), ±5 = a jump (0FE4:05E2; lists move 5 entries, 1F50:05CE). Rosetta takes it on its own pages so
+  the stock page underneath doesn't move its cursor.
+
 ## Opportunities (for Rosetta)
 - Menu flow: skip LOAD/SAVE "DISK or FLASHROM" when there's no flash (it already detects "No Flash ROM fitted"), and skip "FLOPPY or HDSK" when there's no SCSI disk. That makes LOAD one press instead of three. Faster key auto-repeat. EFFECTS is a dead key without an EB16, so make it the Rosetta FX page.
 - Faux FX: hook the note-on at 2B9D:016C (doubling, detune, harmony, echo repeats scheduled from the tick). Per-voice pitch, level, pan and filter LFOs. Unlock the chip's delay engine.
