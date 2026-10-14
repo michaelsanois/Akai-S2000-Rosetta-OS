@@ -56,9 +56,9 @@ rev_params:
         mov cl, 7
         shl ax, cl
         mov [cs:rp_lvl], ax
-        mov al, [cs:par + 7]  ; chunk = 8..63 slices (0.09-0.73 s)
+        mov al, [cs:par + 7]  ; chunk = 8..59 slices (0.09-0.69 s)
         xor ah, ah
-        mov cx, 56
+        mov cx, 52
         mul cx
         mov cl, 7
         shr ax, cl
@@ -93,9 +93,9 @@ rev_params:
         cmp ax, 8
         jae .t1
         mov ax, 8
-.t1:    cmp ax, 63
-        jbe .t2
-        mov ax, 63
+.t1:    cmp ax, 60            ; chunk + FADE must stay < 0x8000: the chip's loop length is signed (hw:
+        jbe .t2               ; 0x8000 played junk after the first lap)
+        mov ax, 60
 .t2:    mov [cs:rp_sl], ax
         xor al, al
         cmp byte [cs:rev_tab + bx + 2], 0
@@ -271,6 +271,7 @@ rev_play:
         mov ah, al
         mov al, 0x0F          ; send level << 8 | dest 0xF (delay line)
 .fb:    mov [cs:vs_send], ax
+        mov word [cs:vs_lr], 0x7D7E
         call vstart
         inc byte [cs:rv_k]
         ret
@@ -316,7 +317,7 @@ vstart:
         xor ax, ax
         out 0x8C, ax          ; env value 0
         VSEL 7
-        mov ax, 0x7D7E
+        mov ax, [cs:vs_lr]    ; L / R volume
         out 0x82, ax
         mov ax, [cs:vs_send]
         out 0x84, ax
@@ -430,6 +431,7 @@ vs_len:   dw 0
 vs_rate:  dw 0
 vs_lvl:   dw 0
 vs_send:  dw 0
+vs_lr:    dw 0x7D7E
 rp_on:    db 0                ; this tick's reverse settings (rev_params)
 rp_oct:   db 0
 rp_fb:    db 0                ; send byte back into the line (0 = none)

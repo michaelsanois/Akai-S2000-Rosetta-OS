@@ -69,7 +69,7 @@ def bank():
         # reverse delays: each chunk of the delay line plays back flipped (TIME scales the chunk)
         ("REVERSE", [], [], (34, None, 0)),       # 0.39 s
         ("REV SHRT", [], [], (14, None, 0)),      # 0.16 s
-        ("REV LONG", [], [], (63, None, 0)),      # 0.73 s
+        ("REV LONG", [], [], (60, None, 0)),      # 0.70 s (max: the loop length must stay < 0x8000)
         ("REV ECHO", [], [], (34, 60, 0)),        # repeats, each one flipped again (FEEDBACK)
         ("REV OCT", [], [], (34, None, 1)),       # an octave up, twice
         ("REV HALL", hall, [], (40, None, 0)),    # the hall's tail flipped: swells into the note

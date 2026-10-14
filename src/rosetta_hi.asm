@@ -15,6 +15,7 @@
 ;   CC 24 LFO RATE  0.03-10 Hz
 ;   CC 25 LFO SPRD  per-voice LFO phase spread (0 = all voices together, 127 = all different)
 ; REVERSE delay (0.22, src/rosetta_rev.asm): CC 26 level (0 = off), 27 time, 28 feedback, 29 octave up.
+; LIVE input FX (0.23, src/rosetta_live.asm): CC 30 input into the FX (0 = off), 31 dry input on the outs.
 ; Hooks: 2345:5611 (every pitch write: note-on + the ~15 ms update, pitch = semitone * 256) and 2345:59CD
 ; (every cutoff target, log 0-FFF, the chip glides to it), 2B9D:01AE (MIDI CC in, any channel).
         cpu 186
@@ -29,7 +30,7 @@ LOREL     equ (HI_SEG - MENU_SEG) * 16
 POPUP     equ 0x8FE0          ; OS popup text buffer in segment 0 (2 x 16 chars + FF)
 NVOICE    equ 32
 CC_FIRST  equ 20
-NCC       equ 10              ; CC 20-29
+NCC       equ 12              ; CC 20-31
 RETF_2345 equ 0x27CB          ; a retf in segment 2345 (near-call trick)
 
         db "RSHI"             ; +0 magic
@@ -222,7 +223,18 @@ hi_tick:
         mov dx, LABBUF
         xor di, di
         call 0x2345:0x1AA0
-.noh:   call rev_run
+.noh:   cmp byte [0x762B], 4      ; SAMPLE page (incl. armed / recording): the OS records through the same
+        jne .dma                  ; sample-RAM DMA, so reverse + live stop here (they hung it on hw 0.23)
+        cmp byte [cs:rv_act], 0
+        je .nr
+        call rev_stop
+.nr:    cmp byte [cs:lv_act], 0
+        je .ndma
+        call live_stop
+        jmp .ndma
+.dma:   call rev_run
+        call live_run
+.ndma:
         call 0x2345:0x0A47    ; al = tick
         mov ah, al
         sub ah, [cs:lasttick]
@@ -462,7 +474,7 @@ racc:     db 0
 cacc:     db 0
 cbusy:    db 0                ; the last pass had a control on
 nt:       db 0
-par:     times NCC db 0      ; CC 20-25: drift, drift speed, detune, filter LFO depth, rate, spread
+par:     times NCC db 0      ; CC 20-31: drift, speed, detune, flt LFO depth, rate, spread, REV x4, LIVE x2
           db 0
 seed:     dw 0xACE1
 dnext:    dw 0
@@ -475,6 +487,7 @@ msg_ok:   db "ROSETTA+ READY  SYNTH CC 20-25  "
 msg_pf:   db "ROSETTA+ READY  PATCH MISMATCH! "
 
 %include "rosetta_rev.asm"
+%include "rosetta_live.asm"
 %include "hi_fx.inc"
 %include "lo_syms.inc"
 %include "hi_tables.inc"      ; hsin (256 x Q14), dtab (32 x signed detune spread), from mkbaby.py
