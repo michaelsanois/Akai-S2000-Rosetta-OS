@@ -7,8 +7,9 @@
 **New tricks for the Akai S2000 sampler.** Rosetta OS is a patch kit for the stock **OS 2.0**: you build a boot
 floppy image from **your own** S2000 OS disk and boot it from a Gotek (FlashFloppy). It unlocks the voice chip's
 hidden **delay engine** as 8 effects with their own EFFECTS page (no EB16 effects board needed), adds an
-MPC-style home screen, and smooths out the menus. Nothing touches ROM or flash: boot your stock disk and it's
-an S2000 again.
+MPC-style home screen and menus, one-button sampling, and a **synth layer** (analog drift, detune, filter LFO on
+MIDI CCs). It also gives the S2000 **64 KB of room for new code**, loaded from the boot floppy after boot, so
+there's space to build much more. Nothing touches ROM or flash: boot your stock disk and it's an S2000 again.
 
 > **Made by JunkSmithWizard (JSW) together with Claude (Anthropic's AI).** Claude wrote the code and did the
 > reverse engineering: NEC V53 disassembly, a whole-OS emulator, and the hidden delay engine measured over MIDI.
@@ -34,7 +35,10 @@ an S2000 again.
 | **Back one level**: the home key steps back (page → top of the mode → HOME) instead of always jumping home | emulator ✅, hardware test next |
 | **Area menus**: EDIT PROGRAM (8 groups), EDIT SAMPLE (6) and GLOBAL (4) open a menu, essentials first. PAGE stays inside the group, GROUP jumps to the next one | EDIT PROGRAM ✅ on hardware (0.13), the rest emulator ✅ |
 | **Sampling screen**: REC opens on the input meter with `SETUP        ARM` (stock hides it behind GROUP); a finished take lands on the sample select page | ✅ on hardware (0.16) |
-| **REC = start/stop**: armed, hold REC to record while held, or tap to start and tap again to stop | emulator ✅, hardware test next |
+| **REC = start/stop**: armed, hold REC to record while held, or tap to start and tap again to stop | ✅ on hardware (0.21) |
+| **+64 KB code space**: the boot ROM only loads 256 KB, so Rosetta reads its extra code from the boot floppy into unused CPU RAM (0x40000) right after boot | ✅ on hardware (0.19) |
+| **SYNTH on MIDI CC 20-25**: per-voice analog drift, detune spread, filter LFO with phase spread. All 0 = exactly stock | ✅ on hardware, measured over MIDI + audio (0.21) |
+| **Hot reload**: send a new build of the extra code into a running S2000 over MIDI (no reboot, no floppy) | ✅ on hardware |
 | **PLAY always plays**: with no program active, PLAY and MIDI notes audition the current sample | ✅ on hardware |
 | **LOAD / SAVE in one press**: skips "DISK or FLASHROM" when no flash ROM is fitted | ✅ on hardware |
 | **Faster data-key repeat** | ✅ on hardware |
@@ -76,6 +80,17 @@ room to grow (modulated feedback taps are next).
   the meter. After the take you land on the sample select page.
 - **Home key**: back one level (page → menu → HOME).
 - **PLAY**: auditions the current sample when no program is loaded.
+- **SYNTH** (any MIDI channel, all 0 = stock): the boot screen says `ROSETTA+ READY / SYNTH CC 20-25` when the
+  extra code is in.
+
+| CC | Does |
+|---|---|
+| 20 | **DRIFT**: each voice wanders in pitch like an old analog synth, up to ±20 cents |
+| 21 | **DRIFT SPEED**: lazy (~2 s) to nervous (~0.25 s) |
+| 22 | **DETUNE**: fixed per-voice detune spread, up to ±25 cents. Voices rotate, so every note is a bit different |
+| 23 | **FILTER LFO**: how far the cutoff dips below where the program sets it, and comes back |
+| 24 | **LFO RATE**: 0.03 to 10 Hz |
+| 25 | **LFO SPREAD**: 0 = all voices together, 127 = every voice on its own phase (moving pads) |
 
 ## Quick start (build your own disk)
 
@@ -98,10 +113,28 @@ python -I tools/mkbaby.py build/s2kos2.img template.hfe build/S2K_ROSETTA
 
 Every patch checks the stock bytes first, so a wrong OS image fails loudly instead of building junk.
 
+## Build your own features (the extra 64 KB)
+
+The menu code (`src/rosetta_menu.asm` and friends, 5.6 KB) is full, so new features go in the **hi code**:
+
+- `src/rosetta_load.asm` (285 B, in free space before the dragon) reads the hi blob from the blocks right after the
+  OS file on the boot floppy, on the first main-loop tick, through the OS's own raw floppy read (`1F50:00BB`). It
+  checks the `RSHI` magic, then calls the blob's tick on every main-loop tick. Popups: LOADING / READY / FAILED.
+- `src/rosetta_hi.asm` hooks the OS **at run time** from a patch table (segment, offset, stock bytes, new bytes);
+  every stock byte is checked first, so nothing points at the hi code unless it really loaded. The OS calls fixed
+  slots in the blob's header, so a new build can be sent in live: `py -3.10 tools/hiload.py` (SysEx, ~2 s).
+- Hooks used so far: pitch (`2345:5611`, semitone × 256 before the exp table, so cents add linearly), filter
+  target (`2345:59CD`, log 0-FFF, the chip glides to it every ~15 ms), MIDI CC (`2B9D:01AE`). The note-on
+  path, voice table and chip registers are in `docs/FINDINGS.md`; ideas in `docs/ideas.md`.
+- Timing: the OS tick `[73DA]` is **0.511 ms** on hardware (1957 Hz).
+- The emulator can run the whole thing: `s2k_ui.py` uses the build's `.img` as the floppy (`S2K_DISK`,
+  `S2K_DISK_AT` to insert it after the OS's boot-time disk read so notes play).
+
 ## Also in the box
 
 - `tools/s2kfx.py`: the PC side of the **FX lab** (SysEx `F0 7D 53 ...`): `ping`, `peek`, `poke`, `outw`, `sel`
   (pick an effect), `load` (tap tables), `note`, `rec`. `tools/irmeasure.py` and `tools/demo.py` measure and record.
+  `tools/hiload.py` hot-loads the hi code.
 - `tools/s2k_emu.py` + `tools/s2k_ui.py`: a unicorn emulator that boots the real OS to the main screen and presses
   keys (`seq`, `fxcheck`, `pagewalk`, `isrcheck`, ...). Needs `unicorn` and `capstone`.
 - `tools/x86dis.py`, `tools/sweep.py`: V53 disassembly helpers (code map, port map, xrefs).
@@ -111,11 +144,13 @@ Every patch checks the stock bytes first, so a wrong OS image fails loudly inste
 
 ## Status: work in progress 🚧
 
-It boots and the FX work on a real S2000. Expect rough edges.
+It boots, and the FX, menus, sampling and synth layer work on a real S2000. Expect rough edges.
 
 **Planned:**
-- Quick jobs (load → audition → assign in a couple of presses).
-- Per-program FX send, tempo-synced echo, denser and modulated reverbs.
+- A SYNTH page on the front panel (the CCs stay for sequencing), unison, wavetable scanning (move a voice's loop
+  through a table), fake-analog and fake-LA waves.
+- Freeze / resonator / shimmer effects, tempo-synced echo, denser and modulated reverbs.
+- Quick jobs (load → audition → assign in a couple of presses), stereo hold-to-record.
 
 Ideas, bug reports and test results are very welcome. Open an issue.
 
