@@ -156,7 +156,10 @@ class S2K:
         if disk is None and os.environ.get("S2K_DISK"):
             disk = open(os.environ["S2K_DISK"], "rb").read()   # raw disk image in the floppy drive
         self.disk = disk
-        self.fdc = FDC765(disk)
+        # S2K_DISK_AT=N: the disk goes in only after N blocks (emulation: notes don't play after the OS's own
+        # boot-time catalogue read of an emulated disk, so tests insert it just before the hi loader runs)
+        self.disk_at = int(os.environ.get("S2K_DISK_AT", "0"))
+        self.fdc = FDC765(disk if not self.disk_at else None)
         self.dma = {}             # DMAU channel -> {"lo": address bits 15-0, "hi": bank, "n": count - 1}
         self.icu = ICU8259()
         self.ports = {}
@@ -228,8 +231,8 @@ class S2K:
         elif port == 0x52:
             self.keyrow = value
         elif port == 0x22:
-            if self.fdc.disk is None and self.disk is not None:
-                self.fdc.disk = self.disk         # (restored from a snapshot)
+            if self.fdc.disk is None and self.disk is not None and self.nblocks >= self.disk_at:
+                self.fdc.disk = self.disk         # (restored from a snapshot, or inserted late)
             self.fdc.write(value)
             if self.fdc.pending_read:
                 self._fdc_read(*self.fdc.pending_read)

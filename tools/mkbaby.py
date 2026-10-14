@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 OS_BLOCK, OS_SIZE = 17, 0x40000
-VERSION = "0.19"
+VERSION = "0.20"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NASM: $NASM, else the author's copy next to the GP-16 project, else `nasm` on PATH
@@ -171,9 +171,23 @@ HI_SEG = 0x4000
 HI_BLOCK = OS_BLOCK + OS_SIZE // 1024
 
 
+def hi_tables(build_dir):
+    """build/hi_tables.inc: hsin = 256-step sine (Q14), dtab = 32 per-voice detune spreads (-127..127, evenly
+    spread and shuffled so neighbouring voices differ)."""
+    import math
+    import random
+    sin = [round(16384 * math.sin(2 * math.pi * i / 256)) for i in range(256)]
+    spread = [round(-127 + 254 * i / 31) for i in range(32)]
+    random.Random(2000).shuffle(spread)
+    with open(os.path.join(build_dir, "hi_tables.inc"), "w") as f:
+        f.write("hsin: dw " + ", ".join(str(v) for v in sin) + "\n")
+        f.write("dtab: db " + ", ".join(str(v) for v in spread) + "\n")
+
+
 def build_hi(build_dir):
     """Assemble src/rosetta_hi.asm, padded to whole 1 KB blocks."""
-    vw = "0x%02X%02X" % tuple(int(x) for x in VERSION.split("."))
+    hi_tables(build_dir)
+    vw = "0x%02d%02d" % tuple(int(x) for x in VERSION.split("."))  # 0.20 -> 0x0020, like VERSION_W
     blob = nasm_blob(build_dir, "rosetta_hi.asm", [f"-DHI_VERSION={vw}"])
     assert blob[:4] == b"RSHI" and len(blob) <= 0x10000
     return blob + bytes(-len(blob) % 1024)
