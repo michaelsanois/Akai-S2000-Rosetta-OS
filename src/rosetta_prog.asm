@@ -13,6 +13,8 @@
 
 CTX_FX    equ 0
 CTX_MENU  equ 1
+CTX_SYN   equ 2               ; the SYNTH page (MULTI, 0.26): hi code (src/rosetta_synui.asm) draws and edits
+MODE_MULTI equ 2
 
 ; page0_hook (mode entry): an area's mode -> its menu. Returns with MODE = 6 so the stock EB16-absent path
 ; runs fx_entry next (which renders the menu for ctx = CTX_MENU). Keeps bx.
@@ -21,7 +23,12 @@ prog_entry:
         mov byte [cs:ctx], CTX_FX
         cmp byte [EB16], 0
         jne .r
-        push bx
+        cmp byte [MODE], MODE_MULTI   ; MULTI = the SYNTH page (the user: "MULTI = SYNTH only")
+        jne .a
+        mov byte [cs:ctx], CTX_SYN
+        mov byte [MODE], MODE_FX
+        ret
+.a:     push bx
         mov al, [MODE]
         mov bx, NAREAS - 1
 .l:     cmp al, [cs:a_mode + bx]

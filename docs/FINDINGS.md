@@ -188,6 +188,16 @@ Per-voice registers: 0 start, 1 end + rate (4.12 fixed point vs 44.1k), 2 loop, 
   (`2345:0258`), ±5 = a jump (0FE4:05E2; lists move 5 entries, 1F50:05CE). Rosetta takes it on its own pages so
   the stock page underneath doesn't move its cursor.
 
+## Programs in RAM (0.26, mapped in the emulator by nudging the stock EDIT pages and diffing)
+- Table at 0:B0D0: [74F4] program segments, then the sample segments (0 ends it). Header 192 B: +3 name, +0F program
+  number (same number = layered), +2A keygroups, +01 the first keygroup's segment; each keygroup's +01 = the next.
+  The selected number is [758A]. A boot floppy's programs + samples load with the OS.
+- Keygroup (192 B, S1000 layout first): +7 filter freq, +8 key track, +12..15 ENV1 A D S R, ENV2 R1 +20 / R2 +9D /
+  R3 +21 / R4 +23, L1 +9C / L2 +9E / L3 +22 / L4 +9F, +95 resonance, +97/98/99 FILTER MOD 1/2/3 amounts. Zones at
+  +22, 24 B each: name, vel lo/hi, cents, semi, level, filter, pan, loop; +22 = the sample's segment.
+- Program header +56 = FILTER MOD 3 source (0 none, 9 Env1, 10 Env2, ...). An S1000 program loads with no source
+  and ENV2 L1 = L2 = 0 (flat): Rosetta routes the ROSETTA ROM programs' filter env itself (sy_fixrs).
+
 ## Opportunities (for Rosetta)
 - Menu flow: skip LOAD/SAVE "DISK or FLASHROM" when there's no flash (it already detects "No Flash ROM fitted"), and skip "FLOPPY or HDSK" when there's no SCSI disk. That makes LOAD one press instead of three. Faster key auto-repeat. EFFECTS is a dead key without an EB16, so make it the Rosetta FX page.
 - Faux FX: hook the note-on at 2B9D:016C (doubling, detune, harmony, echo repeats scheduled from the tick). Per-voice pitch, level, pan and filter LFOs. Unlock the chip's delay engine.

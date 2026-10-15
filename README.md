@@ -35,6 +35,7 @@ there's space to build much more. Nothing touches ROM or flash: boot your stock 
 | **SAV**: the REV menu's knobs (plus FB and IN) saved to the boot floppy, back after a power cycle. FB is remembered per REV type | emulator ✅, hardware test next (0.25) |
 | **COMP gate**: chunks quieter than -18 dB get less boost, none in silence, so hiss between notes is cut instead of pumped up | emulator ✅ (0.25) |
 | **ROSETTA ROM**, a tiny synth rompler: 5 band-limited waves (saw, square, pulse, triangle, sine) in 5 key ranges + 9 synth programs (SAW, SQUARE, PULSE, TRI, SINE, SUPERSAW, BASS, PAD, PLUCK) on the boot floppy. The S2000 loads them with the OS: programs 1-9 at power-on, no disk needed | emulator ✅ (they load), hardware test next (0.25) |
+| **SYNTH page** (MULTI): a mode menu (`< ANALOG >  GO`, FAKE FM and WAVETABLE next), then 4 pages of knobs on the current program, every keygroup at once: WAVE (ROSETTA ROM programs), cutoff, resonance, key track, amp ADSR, filter env amount + attack / decay / sustain / release, drift, detune, filter LFO. Works on any program | emulator ✅ (0.26) |
 | **The rocker** (the big knob's outer ring) on Rosetta pages: half push = next / previous knob, full push = a jump (a page, or 5 menu entries, like stock lists) | emulator ✅ (0.25) |
 | **HOME hub**: main screen line 2 = `LOAD  HALL  EDIT`, F1 / F2 under the screen jump to LOAD and EDIT | ✅ on hardware |
 | **Back one level**: SINGLE (the home key) steps back (page → top of the mode → HOME) instead of always jumping home | ✅ on hardware |
@@ -103,6 +104,18 @@ Panel names: **F1 / F2** = the two buttons under the screen, **SINGLE** = the ho
 - **ROSETTA ROM**: right after boot, turn the DATA wheel on the main screen to pick program 1-9 (RS SAW ... RS
   PLUCK) and play. SUPERSAW and PAD stack 3 detuned voices per note, BASS 2. The SYNTH CCs below (drift, detune,
   filter LFO) turn them into a moving analog-style synth.
+- **SYNTH** (the MULTI key; stock multi mode is not used): `SYN <program>` / `< ANALOG >  GO`. The wheel or rocker
+  picks the mode, F2 = GO. Then 4 pages like the REV menu (F1 / F2 or the rocker = knob, wheel = value, PAGE = page,
+  home = back to the mode menu, home again = HOME):
+
+| Page | Knobs |
+|---|---|
+| 1 | **WAV** (saw, square, pulse, tri, sine: ROSETTA ROM programs) · **CUT** · **RES** · **KEY** (filter key track) |
+| 2 | **ATK** · **DEC** · **SUS** · **REL** (amp envelope) |
+| 3 | **FEN** (filter env amount; routes FILTER MOD 3 to ENV2) · **F.AT** · **F.DC** · **F.SU** |
+| 4 | **F.RL** · **DRF** (drift) · **DET** (detune spread) · **LFO** (filter LFO) |
+
+  Edits go to every keygroup of the selected program number; save the program with the stock SAVE to keep them.
 - **HOME** (main screen): line 2 shows `LOAD  <effect>  EDIT`. Left button under the screen = LOAD,
   right button = EDIT program.
 - **Menus**: EDIT (program), REC → EDIT (sample) and TUNE (global) open a menu like `EDIT PROGRAM 1/8` /

@@ -33,7 +33,12 @@ fx_entry:
         xor al, al
         call pm_render
         jmp .done
-.fx:    cmp byte [cs:wasfx], 0
+.fx:    cmp byte [cs:ctx], CTX_SYN    ; ... and the SYNTH page
+        jne .fx2
+        xor al, al
+        call fx_render
+        jmp .done
+.fx2:   cmp byte [cs:wasfx], 0
         je .show
         mov al, [cs:fxon]
         inc al
@@ -287,9 +292,11 @@ meter_gate:
 ; MFX with a REV type: the live reverse's menu is in the hi code (src/rosetta_rvui.asm, header +1B): ah = 0 draw
 ; (al != 0: LCD too), 1 = soft key al, 2 = value step al. CF = 1: not ours (not MFX, no hi code, not a REV type);
 ; else al = a TYPE step for us (0 = none)
-hi_rv:  cmp byte [cs:mfx], 0
+hi_rv:  cmp byte [cs:ctx], CTX_SYN    ; the SYNTH page: header +1E, same protocol (+ ah = 3: home key)
+        je .h
+        cmp byte [cs:mfx], 0
         je .no
-        push es
+.h:     push es
         push bx
         mov bx, LOAD_SEG
         mov es, bx
@@ -297,7 +304,11 @@ hi_rv:  cmp byte [cs:mfx], 0
         pop bx
         pop es
         jne .no
+        cmp byte [cs:ctx], CTX_SYN
+        je .syn
         call HI_SEG:0x001B
+        ret
+.syn:   call HI_SEG:0x001E
         ret
 .no:    stc
         ret
@@ -347,7 +358,14 @@ fbmax:  push si               ; ax = the preset's FEEDBACK limit (0 = no feedbac
 ; ---------------------------------------------------------------------------------------------
 ; 2 x 16 text into fxbuf -> page 0x0C RAM text (2D95:1402 / 1415); al != 0: also straight to the LCD
 fx_render:
+        cmp byte [cs:ctx], CTX_SYN    ; SYNTH: the hi code fills fxbuf
+        jne .nsy
         push ax
+        mov ah, 0
+        call hi_rv
+        pop ax
+        jmp fx_out
+.nsy:   push ax
         mov ah, 0
         call hi_rv
         pop ax
@@ -402,6 +420,16 @@ fx_render:
         pop ax
         jmp fx_out
 .r0:    ret
+; the hi code's SYNTH page, far: fxbuf (filled by it) -> the page
+syn_out:
+        push es
+        pusha
+        mov al, 1
+        call fx_out
+        popa
+        pop es
+        retf
+
 ; fxbuf -> page 0x0C RAM text (2D95:1402 / 1415); al != 0: also straight to the LCD
 fx_out: push ax
         mov ax, DATA_SEG

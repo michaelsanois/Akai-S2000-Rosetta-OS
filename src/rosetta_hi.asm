@@ -45,6 +45,7 @@ RETF_2345 equ 0x27CB          ; a retf in segment 2345 (near-call trick)
         dw mbox               ; +17 lab mailbox (reverse-delay research, run from the tick)
         dw par                ; +19 the CC 20-29 values (lab)
         jmp near rv_ui        ; +1B the REV menu (src/rosetta_rvui.asm), from the menu code's MFX page
+        jmp near syn_ui       ; +1E the SYNTH page (src/rosetta_synui.asm), MULTI
 
 hi_init:
         pusha
@@ -215,6 +216,7 @@ hi_tick:
         call apply
         call hi_setup
 .go:    call rv_fbsync
+        call sy_fixrs         ; ROSETTA ROM programs: the filter env as the S2000 wants it
         inc word [cs:npass]       ; lab: passes + the longest gap in OS ticks (how often the FX LFO runs)
         call 0x2345:0x0A47
         mov ah, al
@@ -705,6 +707,7 @@ msg_pf:   db "ROSETTA+ READY  PATCH MISMATCH! "
 %include "rosetta_lrev.asm"
 %include "rosetta_rvui.asm"
 %include "rosetta_knobs.asm"
+%include "rosetta_synui.asm"
 %include "hi_fx.inc"
 %include "lo_syms.inc"
 %include "hi_tables.inc"      ; hsin (256 x Q14), dtab (32 x signed detune spread), from mkbaby.py

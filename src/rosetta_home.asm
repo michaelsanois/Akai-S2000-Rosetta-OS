@@ -105,14 +105,32 @@ key_hook:
         jc .eat
 .m0:    cmp al, KEY_EDIT              ; EDIT on the menu = out (stock would flip 6 -> 7)
         jne .m1
+        cmp byte [cs:ctx], CTX_SYN
+        je .me
         cmp byte [cs:ctx], CTX_MENU
         jne .pass
+.me:
         cmp byte [MODE], MODE_FX
         jne .pass
         mov al, 0xC0
 .m1:    cmp al, 0xC0                  ; home key
         jne .pass
-        call in_grp                   ; in a group: back to the menu
+        cmp byte [cs:ctx], CTX_SYN    ; SYNTH: back one level inside it first (pages -> its mode menu)
+        jne .m1b
+        cmp byte [MODE], MODE_FX
+        jne .m1b
+        mov byte [cs:synret], 0
+        pusha
+        push es
+        mov ah, 3
+        call hi_rv
+        jc .m1a                       ; (hi code not there)
+        mov [cs:synret], al
+.m1a:   pop es
+        popa
+        cmp byte [cs:synret], 0
+        jne .eat
+.m1b:   call in_grp                   ; in a group: back to the menu
         jnc .m2
         pusha
         push es
@@ -144,6 +162,8 @@ key_hook:
         xor al, al
 .pass:  test al, 0xC0
         retf
+
+synret:   db 0                ; the SYNTH page's answer to the home key (1 = it went back a level)
 
 ; bl = the top page of [MODE]: FX page 0x0C without EB16, LOAD/SAVE page 1 without flash,
 ; REC = the meter + ARM page, else 0

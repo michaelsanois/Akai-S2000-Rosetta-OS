@@ -37,6 +37,7 @@ fxsendv: dw FX_SEND           ; +13 reg7 word1 OR value while on (send level/e/d
         jmp near rec_armkey   ; +1E from 0FE4:3AA0 (armed loop's `mov al,[73D4]` + `mov byte [73D4],0`, + 3 nop)
         jmp near rec_wait     ; +21 from 2345:27EB (a record step's `call 27F8` + `jb 27F7`): REC key stops
         jmp near meter_gate   ; +24 from 0FE4:3827 (the REC meter's `lcall 2345:0B0B`): off under the MFX page
+        jmp near syn_out      ; +27 from the hi code (SYNTH page): fxbuf -> page RAM + LCD, retf
 
 ; Mode entry sets page 0. For LOAD/SAVE without a flash ROM, page 0 only asks
 ; "DISK or FLASHROM" and FLASHROM just says "No Flash ROM fitted!" -> start on page 1
@@ -94,7 +95,7 @@ fxsend: cmp byte [cs:fxon], 0
 SX_STOCK  equ 0x63CB          ; Akai SysEx handler 0FE4:63CB
 SX_STUB   equ 0xF6B2          ; 0FE4:F6B2 pad stub -> sx_byte
 SX_MAX    equ 420
-VERSION_W equ 0x0025          ; reply to PING
+VERSION_W equ 0x0026          ; reply to PING
 
 sx_start:
         mov word [0x7DE6], SX_STOCK

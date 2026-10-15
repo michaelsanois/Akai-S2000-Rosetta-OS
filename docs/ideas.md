@@ -40,6 +40,16 @@ songs/setups (user OK'd).
   + IR3, sense interrupt with nothing pending = ready change (the OS reads 2 bytes). With a disk the OS reads the
   catalogue at boot. 0.19 (emulator PASS): the loader reads the hi code, READY popup, hi tick runs, menus OK.
 
+## Roadmap from the user (2026-10-15)
+- **MULTI = SYNTH** (stock multi mode not used). A top menu with arrows into the synth modes:
+  - **ANALOG** (0.26): one-screen editing of the current program's keygroups (wave on ROSETTA ROM programs,
+    filter, resonance, key track, filter env, amp env, drift / detune / LFO), on any program.
+  - **FAKE FM**: 2-op FM single cycles precomputed per modulation index (a frame table), the index knob picks
+    the frame; later swept from the tick (loop start per voice) for real FM-like movement.
+  - **WAVETABLE**: frame tables (morphs, formants, PWM) scanned by moving each voice's loop through the table (#6).
+- **SAMPLE** gets the same kind of menu: **LOOPER** (#2 freeze + overdub), **MPC** (pads + auto-chop, #8 / #11),
+  **KEYBOARD** (the stock sampling + map the take across the keys).
+
 ## Ideas, coolest-per-effort first
 | # | Idea | How | Effort |
 |---|---|---|---|
