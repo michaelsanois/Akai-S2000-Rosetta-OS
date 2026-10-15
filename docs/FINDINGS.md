@@ -174,6 +174,19 @@ Per-voice registers: 0 start, 1 end + rate (4.12 fixed point vs 44.1k), 2 loop, 
   that on the running reverse voice and the wet stayed dead until the input restarted.
 - Volume step 7FFFh never climbed on hw; Rosetta caps steps at 1388h (the OS's own for the monitor voice).
 
+## Filter: hidden-mode hunt (hw lab 2026-10-15, 0.25, noise loop on voice 25, scratch filtlab.py)
+- **No hidden filter modes found.** The voice filter is one fixed resonant low-pass. Measured vs open (noise,
+  1/3-octave bands): cutoff 0x500 res 0 = flat to 4 kHz, -5 dB 8k, -11 12k, -14 16k; res 15 = +18 dB peak at 4 kHz;
+  cutoff 0x380 = -13 / -20 / -23 dB at 8 / 12 / 16 kHz.
+- **E0-E4 bank** (fn 0-7, words E2 / E4, every value tried incl. the OS's 8000h / 20h): no audible change on a
+  running voice (within +-1 dB). Not filter shape; maybe latched at key-on only, untested.
+- **reg 6 word 1 bit 15** or **reg 6 word 3 (8Ch) = 8000h**: silence (-60 dB).
+- **reg 6 word 2 (86h, reads 000Fh; reg 5 word 2 too)**: the filter's internal state, not a mode. Any write other
+  than 000Fh breaks it: +40 dB of low rumble (red-noise tilt, near full scale) that **stays** until a write of
+  0010h+ (silence) then 000Fh resets it. Unusable as an effect (uncontrolled, sticks). Never write it.
+- So filter "flavours" in Rosetta = movement only (cutoff / res curves, key track, env shapes, glide); real
+  character needs analog filters on the 8 outs (hw/ib208_clone).
+
 ## Floppy write, the rocker (0.25, emulator-checked 2026-10-14)
 - **Raw sector write** = the raw read `1F50:00BB` (CL cyl, DH head, DL sector 1-based, CH 3 = 1 KB, BX bytes,
   ES:BP buffer, AL 0 = OK) with two immediates flipped for the call: `1F50:0158` DMA mode 4 → 8 (memory to the

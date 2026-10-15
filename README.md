@@ -28,6 +28,7 @@ there's space to build much more. Nothing touches ROM or flash: boot your stock 
 | Feature | Status |
 |---|---|
 | **Rosetta FX**: ROOM, HALL, PLATE, ECHO, PINGPONG, CHORUS, FLANGER on the voice chip's own delay engine | ✅ on hardware (0.10) |
+| **SP-404 style FX** (0.27): **JUNO** (the Juno-60 chorus: one swept line, R = inverted wet), **TAPE** (echo with wow, each repeat darker), **DUB** (long dark echo, -5 dB at 10 kHz per repeat), **RESO** (comb resonator, C3 at T100, TIME = pitch, FB = ring) | emulator ✅ (0.27) |
 | **Reverse delay** on played notes: REVERSE and REV HALL (the hall's tail flipped) | ✅ on hardware (0.22) |
 | **EFFECTS page**: `>HALL >WET 50` / `>T100 >F100 >R100` (type, wet, time/size, feedback, LFO rate) | ✅ on hardware |
 | **MFX = input FX**: EFFECTS on the sampling screen opens the same page for the live input (WET becomes IN) | ✅ on hardware (0.24) |

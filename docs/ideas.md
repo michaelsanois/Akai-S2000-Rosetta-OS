@@ -95,3 +95,37 @@ wherever possible.
   eat window (120 ticks = 61 ms, meant as ~0.3 s), and the FX LFO and data-key repeat values were tuned by ear.
 - tools/hiload.py hot-loads build/rosetta_hi.bin into a running S2000 over SysEx (no reboot): parks the loader tick,
   uploads, re-points the OS hooks (header slots +C/+F/+12), and the new blob's tick re-runs `apply`.
+
+## SP-404 MKII FX on our engine (2026-10-15, list from memory)
+Three paths: **TAPS** = the voice chip's delay line (1.49 s, 30 taps, gain/route/feedback, delays + gains moved
+every 0.51 ms tick; zero latency). **CHUNK** = the live-reverse ring (CPU copies chunks to sample RAM, plays them
+on voices with pitch / LP filter / envelope; ~12 ms latency; the CPU can touch every sample while copying:
+clip, bit mask, sample-and-hold). **EB** = needs real per-sample DSP (smart EB board).
+
+| SP-404 FX | Path | How |
+|---|---|---|
+| Sync Delay, Tape Echo, TimeCtrlDly, DJFX Delay, SX Delay, Ko-Da-Ma | TAPS | BPM taps + FB; tape = LFO wow on the tap |
+| Reverb, SX Reverb | TAPS (have) | metallic until the EB |
+| Chorus, JUNO Chorus, Flanger | TAPS (have chorus/flanger) | Juno = 2 taps, triangle LFO, opposite phase L/R |
+| Tremolo / Pan, Slicer | TAPS | tap gain LFO / BPM gate pattern |
+| Resonator, Hyper-Reso | TAPS | short tap + high FB = comb at a pitch; Hyper = pitch quantized to a scale |
+| Ha-Dou, Zan-Zou, Cloud Delay | TAPS | modulated diffused taps (approximations) |
+| DJFX Looper, Scatter, Stopper | CHUNK (half there: STR/END) | loop / shuffle / reverse slices of the ring |
+| Downer, Back Spin | CHUNK | pitch envelope down on the chunk voice / reverse + pitch ramp |
+| Chromatic PS, Harmony, Auto Pitch (crude) | CHUNK | crossfaded chunks at a new pitch: grainy, Auto Pitch needs pitch detect = weak |
+| Lo-fi, Crusher | CHUNK | bit mask + sample-and-hold while copying |
+| Overdrive, Distortion, WrmSaturator | CHUNK | gain + clip while copying (crude) |
+| Wah, Filter+Drive, Super Filter (LP only) | CHUNK | the voice's resonant LP + LFO/env; no HP/BP |
+| Compressor | CHUNK (have CMP) | per-chunk leveling, not a real comp |
+| Cassette / 303 / 404 VinylSim | TAPS + CHUNK | wow on taps + a crackle/hiss sample voice + LP |
+| Isolator, Equalizer, Phaser, Ring Mod, Vocoder, Gt Amp Sim | EB | need per-sample filters / multiplies |
+
+### OG SP-404 (2005, 29 FX) extras the MKII table misses (user meant the OG; full OG list not found online,
+### partly from memory)
+| OG FX | Path | How |
+|---|---|---|
+| **Subsonic** | CHUNK peak + rompler | input peak over a threshold triggers an RS SINE voice (pitch + decay knobs): an 808-ish sub under the kick |
+| **BPM Looper** | CHUNK | the DJFX Looper locked to BPM + DIV (live reverse already has both) |
+| Center Cancel | CHUNK (maybe) | L-R while copying; only if both input channels reach the ring |
+| Radio Tuning | TAPS + CHUNK, crude | hiss voice + LP + wobbling detune |
+| Voice Transformer | EB | pitch + formant shift |

@@ -35,8 +35,8 @@ def gw(g, route):
     return ((q & 0xFFFC) | (3 if route == FB else route)) & 0xFFFF
 
 
-def mod(fne, fno, route, gain, center_ms, depth_ms, rate_hz, phase_deg=0):
-    c, d = ms(center_ms), ms(depth_ms)
+def mod(fne, fno, route, gain, center_ms, depth_ms, rate_hz, phase_deg=0, off=0):
+    c, d = ms(center_ms) + off, ms(depth_ms)
     assert c - d >= 2 and c + d + 1 < 65535, (center_ms, depth_ms)
     return dict(fne=fne, fno=fno, route=route, gain=gain, center=c, depth=d,
                 inc=int(round(65536 * rate_hz / TICK_HZ)), phase=int(phase_deg / 360 * 65536) & 0xFFFF)
@@ -63,7 +63,7 @@ def bank():
                         mod(5, 6, L, 0.4, 22, 1.8, 0.43, 180), mod(7, 8, R, 0.4, 24, 1.8, 0.43, 270)]),
         ("FLANGER", [], [mod(1, 2, L, 0.75, 2.6, 2.2, 0.2, 0), mod(3, 4, R, 0.75, 2.6, 2.2, 0.2, 30),
                          mod(5, 6, FB, 0.55, 2.6, 2.2, 0.2, 0)]),
-    ]
+    ] + sp404()
     hall = from_json("hall")
     return [p + (None,) for p in stock] + [
         # reverse delays: each chunk of the delay line plays back flipped (TIME scales the chunk). One REVERSE
@@ -71,6 +71,23 @@ def bank():
         # MFX REV menu, src/rosetta_rvui.asm) + REV HALL
         ("REVERSE", [], [], (34, None, 0)),       # 0.39 s
         ("REV HALL", hall, [], (40, None, 0)),    # the hall's tail flipped: swells into the note
+    ]
+
+
+def sp404():
+    """SP-404 style (0.27). JUNO: the Juno-60 chorus trick, one BBD-like line, L = +wet, R = -wet (with the centred
+    dry: L = dry + wet, R = dry - wet), 0.5 Hz, 1.7-5.3 ms. TAPE: echo with wow on every tap (the repeats wobble
+    more each pass) and two feedback taps 2 samples apart (each repeat a bit darker). DUB: long dark echo, a
+    3-tap [1 2 1] FIR in the loop (-5 dB at 10 kHz per repeat), R 12 ms later. RESO: a comb resonator, C3 at
+    TIME 100 (TIME 25-200 = C5 down to C2), FEEDBACK = ring time."""
+    P, N = ms(520), ms(1000 / 130.81)
+    return [
+        ("JUNO", [], [mod(1, 2, L, 0.7, 3.5, 1.8, 0.5, 0), mod(3, 4, R, -0.7, 3.5, 1.8, 0.5, 0)]),
+        ("TAPE", [], [mod(1, 2, L, 0.6, 330, 0.6, 0.8, 0), mod(3, 4, R, 0.6, 345, 0.6, 0.8, 40),
+                      mod(5, 6, FB, 0.25, 330, 0.6, 0.8, 0), mod(7, 8, FB, 0.25, 330, 0.6, 0.8, 0, off=2)]),
+        ("DUB", [(1, 0.6, L, P), (2, 0.6, R, P + ms(12)),
+                 (3, 0.15, FB, P), (4, 0.3, FB, P + 1), (5, 0.15, FB, P + 2)], []),
+        ("RESO", [(1, 0.5, L, N), (2, 0.5, R, N), (3, 0.9, FB, N)], []),
     ]
 
 
