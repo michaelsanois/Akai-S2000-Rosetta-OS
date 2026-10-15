@@ -1,8 +1,6 @@
-# Akai S2000 Rosetta OS  (WIP)
+<p align="center"><img src="docs/mascot/roland_chan_boot.gif" width="560" alt="Roland-chan boot animation"></p>
 
-<!-- mascot: docs/mascot/ (coming soon)
-<p align="center"><img src="docs/mascot/MASCOT.png" width="260" alt="mascot art by JSW"></p>
--->
+# Akai S2000 Rosetta OS  (WIP)
 
 **New tricks for the Akai S2000 sampler.** Rosetta OS is a patch kit for the stock **OS 2.0**: you build a boot
 floppy image from **your own** S2000 OS disk and boot it from a Gotek (FlashFloppy). It unlocks the voice chip's
