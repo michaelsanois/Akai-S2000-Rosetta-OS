@@ -552,6 +552,16 @@ wtap:   push ax
         pop ax
         ret
 
+; al = fn, cx = delay (samples, >= 2): the tap's length only; keeps all registers
+wlen:   push ax
+        mov ah, 0x0A
+        out 0x80, ax
+        mov ax, 2
+        sub ax, cx
+        out 0x84, ax
+        pop ax
+        ret
+
 ; ax (unsigned) * bx % -> ax, saturating at 0xFFFF
 scaleu: mul bx
         cmp dx, 100
@@ -740,12 +750,29 @@ lfo_run:
         test cl, 1
         jz .even
         xchg al, ah                 ; n odd: the odd tap takes delay n
-.even:  mov bx, di
-        call wtap
-        mov al, ah
-        mov bx, bp
+.even:  mov dx, ax                  ; dl = the tap at delay n, dh = the tap at n + 1
+        ; lengths first (a tap only moves while its gain is ~0), then the two gains back to back with
+        ; interrupts off: between the two gain writes the pair's sum is off by this pass's step, and a sample
+        ; the chip takes there is a blip (hw 0.27: ~40 clicks/s on held chords with every LFO type when the
+        ; pair was written gain, length, gain, length)
+        mov al, dl
+        call wlen
+        mov al, dh
         inc cx
-        call wtap
+        call wlen
+        pushf
+        cli
+        mov al, dl
+        mov ah, 0x0A
+        out 0x80, ax
+        mov ax, di
+        out 0x82, ax
+        mov al, dh
+        mov ah, 0x0A
+        out 0x80, ax
+        mov ax, bp
+        out 0x82, ax
+        popf
         pop cx
         add si, MSLOT
         dec ch
