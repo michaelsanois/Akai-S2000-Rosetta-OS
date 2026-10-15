@@ -28,14 +28,14 @@ there's space to build much more. Nothing touches ROM or flash: boot your stock 
 | Feature | Status |
 |---|---|
 | **Rosetta FX**: ROOM, HALL, PLATE, ECHO, PINGPONG, CHORUS, FLANGER on the voice chip's own delay engine | ✅ on hardware (0.10) |
-| **SP-404 style FX** (0.27): **JUNO** (the Juno-60 chorus: one swept line, R = inverted wet), **TAPE** (echo with wow, each repeat darker), **DUB** (long dark echo, -5 dB at 10 kHz per repeat), **RESO** (comb resonator, C3 at T100, TIME = pitch, FB = ring) | emulator ✅ (0.27) |
+| **SP-404 style FX** (0.27): **JUNO** (the Juno-60 chorus: one swept line, R = inverted wet), **TAPE** (echo with wow, each repeat darker), **DUB** (long dark echo, -5 dB at 10 kHz per repeat), **RESO** (comb resonator, C3 at T100, TIME = pitch, FB = ring) | DUB / RESO ✅ on hardware; JUNO / TAPE (and CHORUS / FLANGER) **crackle on held chords**: see [Walls](#walls-we-hit) (0.27) |
 | **Reverse delay** on played notes: REVERSE and REV HALL (the hall's tail flipped) | ✅ on hardware (0.22) |
 | **EFFECTS page**: `>HALL >WET 50` / `>T100 >F100 >R100` (type, wet, time/size, feedback, LFO rate) | ✅ on hardware |
 | **MFX = input FX**: EFFECTS on the sampling screen opens the same page for the live input (WET becomes IN) | ✅ on hardware (0.24) |
 | **LIVE REVERSE** on the input, with its own menu: BPM + note division or length in ms, feedback, attack, release, chunk leveling, loop start/end inside the chunk, octave up/down, tone, ping-pong, dry level | ✅ on hardware (0.24) |
-| **SAV**: the REV menu's knobs (plus FB and IN) saved to the boot floppy, back after a power cycle. FB is remembered per REV type | emulator ✅, hardware test next (0.25) |
+| **SAV**: the REV menu's knobs (plus FB and IN) saved to the boot floppy, back after a power cycle. FB is remembered per REV type | ✅ on hardware (0.25) |
 | **COMP gate**: chunks quieter than -18 dB get less boost, none in silence, so hiss between notes is cut instead of pumped up | emulator ✅ (0.25) |
-| **ROSETTA ROM**, a tiny synth rompler: 5 band-limited waves (saw, square, pulse, triangle, sine) in 5 key ranges + 9 synth programs (SAW, SQUARE, PULSE, TRI, SINE, SUPERSAW, BASS, PAD, PLUCK) on the boot floppy. The S2000 loads them with the OS: programs 1-9 at power-on, no disk needed | emulator ✅ (they load), hardware test next (0.25) |
+| **ROSETTA ROM**, a tiny synth rompler: 5 band-limited waves (saw, square, pulse, triangle, sine) in 5 key ranges + 9 synth programs (SAW, SQUARE, PULSE, TRI, SINE, SUPERSAW, BASS, PAD, PLUCK) on the boot floppy. The S2000 loads them with the OS: programs 1-9 at power-on, no disk needed. Each loop is stored with the wave on both sides of it (see [Walls](#walls-we-hit)) | ✅ on hardware (0.27: clean loops) |
 | **SYNTH page** (MULTI): a mode menu (`< ANALOG >  GO`, FAKE FM and WAVETABLE next), then 4 pages of knobs on the current program, every keygroup at once: WAVE (ROSETTA ROM programs), cutoff, resonance, key track, amp ADSR, filter env amount + attack / decay / sustain / release, drift, detune, filter LFO. Works on any program | emulator ✅ (0.26) |
 | **The rocker** (the big knob's outer ring) on Rosetta pages: half push = next / previous knob, full push = a jump (a page, or 5 menu entries, like stock lists) | emulator ✅ (0.25) |
 | **HOME hub**: main screen line 2 = `LOAD  HALL  EDIT`, F1 / F2 under the screen jump to LOAD and EDIT | ✅ on hardware |
@@ -198,13 +198,46 @@ The menu code (`src/rosetta_menu.asm` and friends, 5.6 KB) is full, so new featu
 - `docs/FINDINGS.md`: the lab notebook (hardware map, code map, sound engine, build history).
 - `docs/menu_design.md`: the menu redesign plan. `docs/pagewalk.txt`, `docs/ui_tree.txt`: stock UI maps.
 
+## Walls we hit
+
+Notes for anyone hacking an S2000 / S3000-family sampler (L7A1045 voice chip, V53 CPU). Details in
+[docs/FINDINGS.md](docs/FINDINGS.md).
+
+- **The boot ROM loads only 256 KB of OS.** No room left for big features. Way round: a tiny loader in the OS
+  reads more code from the boot floppy into CPU RAM the OS never uses (0x40000-0x4FFFF), after boot.
+- **There's no FX chip without the EB16 board**, but the voice chip has a delay engine (one 1.49 s line, 30 taps)
+  that the stock OS barely uses. We mapped it from a PC: SysEx backdoor + noise burst + deconvolution.
+- **One delay line = no series allpasses.** The reverbs are multi-tap and sound metallic. Real smooth reverbs need
+  a DSP board in the EB16 slot ([hw/smart_eb](hw/smart_eb/README.md)).
+- **The filter is fixed: one resonant low-pass per voice, no hidden modes.** We poked every filter register on hw:
+  the undocumented second bank (ports E0h-E4h) changes nothing, and reg 6 word 2 is the filter's internal state
+  (writing it = loud stuck rumble). Filter "flavours" can only be movement (curves, envelopes); real character
+  means analog filters on the 8 individual outs ([hw/ib208_clone](hw/ib208_clone/README.md)).
+- **Loops need the wave on both sides.** The interpolator reads 6-9 samples past a loop end and a few before the
+  loop start after the jump. A single-cycle loop with other data around it in sample RAM clicks every loop
+  (our rompler "crackled"). Store some of the wave before and after the loop.
+- **Moving delay taps crackle (OPEN).** Chorus-type FX crossfade two taps between neighbouring delays. Same-value
+  writes, small gain steps and 1-2 sample moves are clean one by one, yet the running LFO clicks on held chords.
+  Writing a pair's lengths first and both gains back to back halved it. Hunt plan: [docs/crackle_hunt.md](docs/crackle_hunt.md).
+- **The CPU is slow for audio.** A per-sample loop over 44.1 kHz eats ~80 % of the V53. Live reverse moves
+  chunks with string instructions instead (~40 %) and has ~12 ms latency; no multiplies per sample.
+- **Sample-RAM DMA disturbs the even voices** (it rewrites their start-address high bits). Rosetta plays its own
+  voices on odd numbers.
+- **Writing the floppy:** the OS has a raw sector read; flipping two immediates (DMA mode, FDC command) for one call
+  turns it into a write. That's how SAV keeps knobs on the boot floppy.
+- **Lab hygiene:** a SysEx poke into RAM must use addresses from the build that's running. A poke from an older
+  build's symbol map hung the sampler once.
+
 ## Status: work in progress 🚧
 
 It boots, and the FX, menus, sampling and synth layer work on a real S2000. Expect rough edges.
 
+**Known issue:** the moving FX (CHORUS, FLANGER, JUNO, TAPE) crackle on held chords ([Walls](#walls-we-hit)).
+The static ones (ROOM, HALL, PLATE, ECHO, PINGPONG, DUB, RESO) are clean.
+
 **Planned:**
-- A SYNTH page on the front panel (the CCs stay for sequencing), unison, wavetable scanning (move a voice's loop
-  through a table), fake-analog and fake-LA waves.
+- SYNTH page modes: FAKE FM and WAVETABLE (move a voice's loop through a table); unison.
+- A SAMPLE menu: LOOPER, MPC and KEYBOARD modes.
 - Live reverse: follow MIDI clock, a lower-latency fill from the timer interrupt.
 - Freeze / resonator / shimmer effects, tempo-synced echo, denser and modulated reverbs.
 - Quick jobs (load → audition → assign in a couple of presses), stereo hold-to-record.
