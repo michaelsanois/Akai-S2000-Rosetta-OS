@@ -5,10 +5,11 @@ Band-limited single-cycle waves (SAW, SQR, PLS, TRI, SIN), multisampled in 5 key
 top note, plus ready-made S1000 programs that use them (filter + filter envelope, detuned layers). With the SYNTH
 CCs (20-25: drift, detune, filter LFO) they make a small analog-style synth.
 
-Waves: each buffer holds k whole cycles (>= 256 samples, so the pitch is exact after the cents tune) plus GUARD
-samples that continue the wave (x[0..GUARD-1]). The loop is the k cycles. The chip runs 6-9 samples past the loop
-end before it jumps back by the loop length (measured on hw 2026-10-15: with 1 guard sample, the junk after it
-clicked once per loop = the "crackle"), so what it reads there must be the wave's own continuation.
+Waves: the loop is k whole cycles (>= 256 samples, so the pitch is exact after the cents tune), stored with PRE
+samples of the wave before it and GUARD after it (the same periodic wave all through). The chip's interpolator reads
+past the loop end and, after the jump back, before the loop start (measured on hw 2026-10-15: a loop with other data
+around it clicked once per loop at up to 1.3 x the wave's level = the "crackle"; with the wave on both sides, -34 dB
+residual = the noise floor), so both sides must be the wave itself.
 
   python -I tools/rompler.py                 list what goes on the disk
   (mkbaby.py adds it unless ROMPLER=0)
@@ -31,7 +32,8 @@ SR = 44100
 TOP_HZ = 18000                               # harmonics stay below this at a range's top note
 RANGES = [(0, 41, 36), (42, 59, 52), (60, 71, 66), (72, 83, 78), (84, 127, 90)]   # lo, hi, root (MIDI)
 MIN_LEN = 256
-GUARD = 64                                   # continuation after the loop end (the chip overshoots it)
+GUARD = 64                                   # the wave continued after the loop end ...
+PRE = 32                                     # ... and before the loop start (the chip's interpolator reads both)
 
 
 def hz(note):
@@ -70,10 +72,10 @@ def make_sample(kind, rng_i):
     x = x - x.mean()
     x = x / np.abs(x).max() * 0.85 * 32767
     pcm = np.round(x).astype(np.int16)
-    pcm = np.concatenate([pcm, pcm[:GUARD]])  # the loop's continuation (see GUARD)
+    pcm = pcm[(np.arange(PRE + n + GUARD) - PRE) % n]   # PRE | the loop (n) | GUARD, one periodic wave
     cents = 1200 * math.log2(hz(root) / f0)  # tune so note `root` sounds at its own pitch
     name = f"RS {kind} {rng_i + 1}"
-    return Sample(name, pcm, root=root, cents=cents, loops=[Loop(0, n)], loop_mode=LM_LOOP_REL), nh
+    return Sample(name, pcm, root=root, cents=cents, loops=[Loop(PRE, PRE + n)], loop_mode=LM_LOOP_REL), nh
 
 
 # programs: (name, zones [(wave, cents, semis, pan, loud)], filter, key>filter, env1 ADSR, env2 ADSR, env2>filter)
@@ -129,7 +131,7 @@ if __name__ == "__main__":
         for r in range(len(RANGES)):
             s, nh = make_sample(kind, r)
             lo, hi, root = RANGES[r]
-            print(f"  {s.name:12s} keys {lo:3d}-{hi:3d} root {root} {s.n - GUARD:4d}+{GUARD} samples, {nh:3d} harmonics, tune {s.cents:+.1f} c")
+            print(f"  {s.name:12s} keys {lo:3d}-{hi:3d} root {root} {PRE}+{s.n - GUARD - PRE:4d}+{GUARD} samples, {nh:3d} harmonics, tune {s.cents:+.1f} c")
     for n, t, b in build():
         tot += len(b)
     print(f"  {len(build())} files, {tot / 1024:.1f} KB")
