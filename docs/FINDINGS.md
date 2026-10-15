@@ -174,6 +174,12 @@ Per-voice registers: 0 start, 1 end + rate (4.12 fixed point vs 44.1k), 2 loop, 
   that on the running reverse voice and the wet stayed dead until the input restarted.
 - Volume step 7FFFh never climbed on hw; Rosetta caps steps at 1388h (the OS's own for the monitor voice).
 
+## Loops overshoot (hw 2026-10-15)
+- A looping voice runs **6-9 samples past the loop end** before it jumps back by the loop length. A sample whose data
+  stops right after the loop end plays whatever follows in sample RAM there: a click once per loop (ROSETTA ROM's
+  "crackle", 0.83 x the wave's amplitude). Measured with a sine: 9-13 continuation words cured it, 3-5 didn't.
+  ROSETTA ROM now stores 64 continuation samples after each loop.
+
 ## Filter: hidden-mode hunt (hw lab 2026-10-15, 0.25, noise loop on voice 25, scratch filtlab.py)
 - **No hidden filter modes found.** The voice filter is one fixed resonant low-pass. Measured vs open (noise,
   1/3-octave bands): cutoff 0x500 res 0 = flat to 4 kHz, -5 dB 8k, -11 12k, -14 16k; res 15 = +18 dB peak at 4 kHz;
