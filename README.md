@@ -1,5 +1,7 @@
 <p align="center"><img src="docs/mascot/roland_chan_boot.gif" width="560" alt="Roland-chan boot animation"></p>
 
+<p align="center"><a href="https://discord.gg/R3CQkFdRtf"><img src="https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white" alt="Join the Discord"></a></p>
+
 # Akai S2000 Rosetta OS  (WIP)
 
 **New tricks for the Akai S2000 sampler.** Rosetta OS is a patch kit for the stock **OS 2.0**: you build a boot
@@ -13,6 +15,7 @@ there's space to build much more. Nothing touches ROM or flash: boot your stock 
 > reverse engineering: NEC V53 disassembly, a whole-OS emulator, and the hidden delay engine measured over MIDI.
 > JSW ran every build on a real S2000, built the measurement rig, and made the calls by ear.
 > Same family as the [GP-16 Rosetta OS](https://github.com/yuyoi/super-Gp-16-Rosetta-OS), which the boot dragon comes from.
+> Questions, hardware reports and ideas: **[Discord](https://discord.gg/R3CQkFdRtf)**.
 
 ## Demo
 
@@ -242,7 +245,8 @@ The static ones (ROOM, HALL, PLATE, ECHO, PINGPONG, DUB, RESO) are clean.
 - Freeze / resonator / shimmer effects, tempo-synced echo, denser and modulated reverbs.
 - Quick jobs (load → audition → assign in a couple of presses), stereo hold-to-record.
 
-Ideas, bug reports and test results are very welcome. Open an issue.
+Ideas, bug reports and test results are very welcome: open an issue or come to the
+[Rosetta Discord](https://discord.gg/R3CQkFdRtf).
 
 ## Legal
 
