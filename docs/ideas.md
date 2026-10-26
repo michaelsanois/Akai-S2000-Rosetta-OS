@@ -49,6 +49,14 @@ songs/setups (user OK'd).
   - **WAVETABLE**: frame tables (morphs, formants, PWM) scanned by moving each voice's loop through the table (#6).
 - **SAMPLE** gets the same kind of menu: **LOOPER** (#2 freeze + overdub), **MPC** (pads + auto-chop, #8 / #11),
   **KEYBOARD** (the stock sampling + map the take across the keys).
+- **Rosetta in ROM** (user, 2026-10-26, photo of the main board): the socketed EPROM labelled "S2000 V1.5" (next
+  to the V53, IC1) holds the built-in OS 1.5 and the floppy loader (the 256 KB limit). Replacing it = boot straight
+  into Rosetta, no floppy / Gotek for the OS, maybe more code space. Steps: (1) dump it over MIDI with the lab's
+  peek (the CPU sees it at the top of memory, no chip pulled) and find its size + mapping; (2) read the part number
+  under the label (looks like 40-pin 16-bit, 27C400 / 27C4002 class; the board has a "27C400 ... VPP" jumper);
+  (3) a build tool makes the ROM image from the user's own OS disk (never ship Akai code); (4) burn a spare 16-bit
+  DIP-40 EPROM, keep V1.5 as the fallback. The user's SST39SF040 setup is 8-bit / 32-pin: it needs a 16-bit
+  programmer or two 8-bit chips on an adapter.
 
 ## Ideas, coolest-per-effort first
 | # | Idea | How | Effort |
