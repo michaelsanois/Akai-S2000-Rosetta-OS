@@ -149,7 +149,9 @@ pg_key: mov bl, [cs:grp]
         je .gp
         clc
         ret
-.next:  call inB
+.next:  call grp_page
+        jnc .os
+        call inB
         jc .nb
         cmp ah, [cs:g_end + bx]
         jb .step1
@@ -159,7 +161,9 @@ pg_key: mov bl, [cs:grp]
         jb .step1
         mov al, [cs:g_start + bx]
         jmp .set
-.prev:  call inB
+.prev:  call grp_page
+        jnc .os
+        call inB
         jc .pb
         cmp ah, [cs:g_start + bx]
         ja .step0
@@ -169,6 +173,8 @@ pg_key: mov bl, [cs:grp]
         ja .step0
         mov al, [cs:g_back + bx]
         jmp .set
+.os:    clc                           ; on an OS sub-page outside the group (FORMAT HARD DISK, backup, GO
+        ret                           ; confirms): PAGE is stock, no pull-back (0.27 hid the HD format)
 .step1: mov byte [cs:pstep], 1        ; stock steps (it skips hidden pages); pm_poll checks the result
         jmp .st
 .step0: mov byte [cs:pstep], 0xFF
@@ -186,6 +192,13 @@ pg_key: mov bl, [cs:grp]
         call redraw
         stc
         ret
+
+; bx = group: CF = 1 if page ah is one of the group's own pages (range A or B)
+grp_page:
+        call inA
+        jc .r
+        call inB
+.r:     ret
 
 ; bx = group: CF = 1 if page ah is in range A / range B
 inA:    cmp ah, [cs:g_start + bx]

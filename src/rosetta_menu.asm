@@ -95,7 +95,7 @@ fxsend: cmp byte [cs:fxon], 0
 SX_STOCK  equ 0x63CB          ; Akai SysEx handler 0FE4:63CB
 SX_STUB   equ 0xF6B2          ; 0FE4:F6B2 pad stub -> sx_byte
 SX_MAX    equ 420
-VERSION_W equ 0x0027          ; reply to PING
+VERSION_W equ 0x0028          ; reply to PING
 
 sx_start:
         mov word [0x7DE6], SX_STOCK
