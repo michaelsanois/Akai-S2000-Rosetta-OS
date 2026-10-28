@@ -4,6 +4,21 @@
 
 # Akai S2000 Rosetta OS  (WIP)
 
+> ## S2000 Bridge edition
+> This is a fork of [JSW's Rosetta OS](https://github.com/yuyoi/Akai-S2000-Rosetta-OS) with additions for
+> [S2000 Bridge](https://michaelsanois.github.io/s2000-bridge/), the Mac app/AUv2 plugin that sends programs
+> to an S2000 over SCSI. It is shared here with JSW's blessing; all the credit below is his.
+>
+> What this edition adds (0.29–0.31), all driven over SysEx from S2000 Bridge:
+> - **Effects control:** `F0 7D 53 09 ff vvvv F7` sets EFFECTS WET / TIME / FEEDBACK / RATE, so the Bridge's FX
+>   knobs can be automated from a DAW.
+> - **Remote recording** for the Bridge's RECORD panel: front-panel keys (`0A`), REC length / mono-stereo /
+>   threshold / start mode (`0B`), STOP during a take (`0C`, read from the MIDI ring while the OS records), a
+>   `4D` reply when a take is kept, and `0D nn` to select a sample so PLAY auditions it.
+> - **Take naming:** new recordings are named TAKE 01, TAKE 02… so ARM no longer replaces a sample with the same name.
+>
+> Everything else, including how to build the boot disk from your own OS 2.0 disk, is as in the original below.
+
 **New tricks for the Akai S2000 sampler.** Rosetta OS is a patch kit for the stock **OS 2.0**: you build a boot
 floppy image from **your own** S2000 OS disk and boot it from a Gotek (FlashFloppy). It unlocks the voice chip's
 hidden **delay engine** as effects with their own EFFECTS page (no EB16 effects board needed), puts the **live
