@@ -46,6 +46,7 @@ RETF_2345 equ 0x27CB          ; a retf in segment 2345 (near-call trick)
         dw par                ; +19 the CC 20-29 values (lab)
         jmp near rv_ui        ; +1B the REV menu (src/rosetta_rvui.asm), from the menu code's MFX page
         jmp near syn_ui       ; +1E the SYNTH page (src/rosetta_synui.asm), MULTI
+        jmp near aud_sel      ; +21 SysEx 0D nn: current sample (menu code sx_exec, 0.31)
 
 hi_init:
         pusha
@@ -242,7 +243,8 @@ hi_tick:
         cmp byte [cs:rv_act], 0
         je .nr
         call rev_stop
-.nr:    call lr_run
+.nr:    call take_name            ; REC pages (never armed or recording here): the next take's name, 0.31
+        call lr_run
         call mfx_run
         jmp .ndma
 .dma:   mov byte [cs:lr_act], 0   ; off the SAMPLE page the OS has stopped the input (live reverse included)
@@ -636,6 +638,78 @@ mfx_run:
         popf
         ret
 
+; ---------------------------------------------------------------------------------------------
+; Bridge's S2000 RECORD panel (0.31). DS = 0 (main loop / armed loop). The resident sample table: DS:B0D0 holds
+; [74F4] program segments, then [74F6] sample segments; a sample header has its 12-character name at +3.
+REC_NAME  equ 0x87A3          ; name in the REC header template (0x87A0): the next take is built from it
+
+; al = sample index: it becomes the current sample ([7639]), the one PLAY auditions on the sample/REC pages
+aud_sel:
+        cmp byte [0x74F7], 0
+        jne .s
+        cmp al, [0x74F6]
+        jae .r
+.s:     mov [0x7639], al
+.r:     retf
+
+; The next take gets the REC name, and pressing ARM deletes a resident sample with the same name (the OS
+; replaces it). So on the REC pages (but not page 0, where the name is typed) make it the first free
+; TAKE 01..TAKE 99: once after boot (it boots as program 1's name), then whenever a resident sample has it.
+take_name:
+        cmp byte [0x762C], 0
+        je .x
+        pusha
+        push es
+        cld
+        cmp byte [cs:tnamed], 0
+        je .t
+        call name_used
+        jnc .r
+.t:     mov byte [cs:tnamed], 1
+        mov word [REC_NAME], 0x0B1E           ; T A  (Akai: 0-9 = digits, 0A = space, 0B.. = A..)
+        mov word [REC_NAME + 2], 0x0F15       ; K E
+        mov byte [REC_NAME + 4], 0x0A
+        mov word [REC_NAME + 7], 0x0A0A
+        mov word [REC_NAME + 9], 0x0A0A
+        mov byte [REC_NAME + 11], 0x0A
+        mov al, 1
+.n:     push ax
+        aam                                   ; ah = tens, al = units
+        mov [REC_NAME + 5], ah
+        mov [REC_NAME + 6], al
+        call name_used
+        pop ax
+        jnc .r
+        inc al
+        cmp al, 100
+        jb .n
+.r:     pop es
+        popa
+.x:     ret
+
+; CF = 1: a resident sample is named like REC_NAME
+name_used:
+        mov bl, [0x74F4]
+        xor bh, bh
+        shl bx, 1
+        add bx, 0xB0D0
+        mov cx, [0x74F6]
+        jcxz .no
+.l:     mov es, [bx]
+        push cx
+        mov si, REC_NAME
+        mov di, 3
+        mov cx, 12
+        repe cmpsb
+        pop cx
+        je .yes
+        add bx, 2
+        loop .l
+.no:    clc
+        ret
+.yes:   stc
+        ret
+
 ; ax = 16-bit random (xorshift)
 rnd:    mov ax, [cs:seed]
         mov dx, ax
@@ -693,6 +767,7 @@ cbusy:    db 0                ; the last pass had a control on
 nt:       db 0
 par:     times NCC db 0      ; CC 20-31: drift, speed, detune, flt LFO depth, rate, spread, REV x4, (30-31 free)
           db 0
+tnamed:   db 0                ; take_name has named the takes since boot
 seed:     dw 0xACE1
 dnext:    dw 0
 lphase:   dw 0
