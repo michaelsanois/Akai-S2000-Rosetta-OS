@@ -30,6 +30,7 @@ rec_key:
 rec_done:
         mov byte [0x8215], 0
         mov byte [cs:recdone], 1
+        mov byte [cs:intake], 0
         retf
 
 ; ---------------------------------------------------------------------------------------------
@@ -68,7 +69,10 @@ rec_armkey:
 ; 2345:27EB (a record step's DMA wait, replaces `call 27F8` + `jb 27F7`). Returns to 27F0 (copy the new
 ; chunk, wait on) or, when the wait is over, to 27F7 (its ret).
 rec_wait:
-        cmp byte [cs:hold], 0
+        cmp byte [cs:intake], 0
+        jne .go
+        call take_start
+.go:    cmp byte [cs:hold], 0
         je .wait
         cmp byte [cs:stopping], 0
         jne .done
@@ -89,10 +93,33 @@ rec_wait:
         pop bp
         retf
 
+; first record step of a take (0.30): the next ARM starts fresh; a take not started with the REC key
+; (ARM threshold, GO, MIDI start, Bridge) is tracked as latched, so REC or Bridge's STOP ends it
+take_start:
+        mov byte [cs:intake], 1
+        mov byte [cs:armed], 0
+        push ax
+        mov ax, [RXWP]                ; Bridge's STOP: only MIDI bytes from now on count
+        mov [cs:rxpos], ax
+        mov byte [cs:rst], 0
+        cmp byte [cs:hold], 0
+        jne .h
+        mov byte [cs:hold], 1
+        mov byte [cs:phase], 2
+        xor ax, ax
+        mov [cs:dfirst], al
+        mov [cs:stopping], al
+        mov [cs:dbytes], ax
+        mov [cs:dbytes + 2], ax
+.h:     pop ax
+        ret
+
 ; count the DMA bytes since the start, watch the REC key, stop when it says so (pusha'd, DS = 0)
 rec_track:
         cmp byte [0x7500], 0          ; stereo: full length (cutting it isn't worked out yet)
         jne .r
+        call rscan                    ; Bridge's STOP (0.30)
+        jc rec_stop
         mov dx, 0xC001
         mov al, 2
         out dx, al
@@ -192,9 +219,47 @@ rec_stop:
         mov byte [0x7A7C], 15
         ret
 
+; Bridge's STOP during a take (0.30): the OS doesn't parse MIDI while it records, but the rx ISR still fills
+; its ring (page 0x0300, write pointer [73A0]). Look through the bytes since the last look for F0 7D 53 0C
+; (MIDI real-time bytes can sit anywhere in it). CF = 1: seen. (pusha'd, DS = 0)
+RXWP      equ 0x73A0
+rscan:  mov si, [cs:rxpos]
+        mov bl, [cs:rst]
+        xor bh, bh
+.l:     cmp si, [RXWP]
+        je .no
+        mov al, [si]
+        inc si
+        and si, 0x00FF
+        or si, 0x0300
+        cmp al, 0xF8
+        jae .l
+        cmp al, [cs:rpat + bx]
+        jne .miss
+        inc bx
+        cmp bl, 4
+        jb .l
+        mov [cs:rxpos], si
+        mov byte [cs:rst], 0
+        stc
+        ret
+.miss:  xor bl, bl
+        cmp al, 0xF0
+        jne .l
+        inc bl
+        jmp short .l
+.no:    mov [cs:rxpos], si
+        mov [cs:rst], bl
+        clc
+        ret
+rpat:   db 0xF0, 0x7D, 0x53, 0x0C
+
 ; main-loop wait: after a take, go to the sample select page (after the record routine has returned);
-; time out the "eat the stopping REC press" window
+; time out the "eat the stopping REC press" window. The main loop doesn't run while armed or recording,
+; so here no take is under way (0.30: an aborted ARM or take starts the next one fresh).
 rec_poll:
+        mov byte [cs:armed], 0
+        mov byte [cs:intake], 0
         cmp byte [cs:eatrec], 0
         je .t
         call 0x2345:0x0A47            ; al = tick
@@ -211,6 +276,19 @@ rec_poll:
         mov byte [cs:recdone], 0
         pusha
         push es
+        mov al, 0x4D                  ; take done (0.30, Bridge): F0 7D 53 4D <frames: 8 nibbles> <stereo: 2> F7
+        call tx_head
+        mov ax, [0x87BA]              ; = frames + 1
+        mov dx, [0x87BC]
+        sub ax, 1
+        sbb dx, 0
+        xchg ax, dx
+        call tx_w
+        mov ax, dx
+        call tx_w
+        mov al, [0x7500]
+        call tx_b
+        call tx_end
         cmp byte [EB16], 0
         jne .stock
         mov byte [cs:area], 1         ; EDIT SAMPLE menu, group 1 (SAMPLE+PITCH, starts on page 0)
@@ -237,6 +315,9 @@ rec_eat:
         ret
 
 recdone:  db 0
+intake:   db 0                ; a take is running (set by its first record step)
+rst:      db 0                ; rscan: how much of F0 7D 53 0C has matched
+rxpos:    dw 0                ; rscan: next rx ring byte to look at
 armed:    db 0                ; set on the armed loop's first pass, cleared when REC starts the take
 hold:     db 0                ; the take was started with the REC key
 phase:    db 0
