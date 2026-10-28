@@ -95,7 +95,7 @@ fxsend: cmp byte [cs:fxon], 0
 SX_STOCK  equ 0x63CB          ; Akai SysEx handler 0FE4:63CB
 SX_STUB   equ 0xF6B2          ; 0FE4:F6B2 pad stub -> sx_byte
 SX_MAX    equ 420
-VERSION_W equ 0x0028          ; reply to PING
+VERSION_W equ 0x0031          ; reply to PING
 
 sx_start:
         mov word [0x7DE6], SX_STOCK
@@ -156,7 +156,122 @@ sx_exec:
         je .inw
         cmp al, 0x08
         je .fxsel
+        cmp al, 0x09
+        je .fxpar
+        cmp al, 0x0A
+        je .rkey
+        cmp al, 0x0B
+        je .recset
+        cmp al, 0x0D
+        je .aud
+        ret                   ; (0C = STOP is read straight from the rx ring during a take: rscan)
+; 0D nn: sample nn becomes the current sample, which PLAY auditions on a sample page (0.31, hi code: aud_sel)
+.aud:   call nib2
+        call hiok
+        jne .r0d
+        call HI_SEG:0x0021
+.r0d:   ret
+; 0A kk: press front-panel key kk; the OS takes it from KEYEV like a real press (0.30, Bridge's S2000 RECORD
+; panel). Only REC, home, the two soft keys (SETUP/ARM, GO/EXIT when armed) and PLAY down/up.
+.rkey:  call nib2
+        mov di, rkeys
+        mov cx, RKEYS
+.rk1:   cmp al, [cs:di]
+        je .rk2
+        inc di
+        loop .rk1
         ret
+.rk2:   mov [KEYEV], al
+        ret
+; 0B ff vvvv: REC setup field ff = vvvv, as the REC pages would set it (0.30): 1 length in whole seconds
+; (made shorter until it fits in free memory), 2 MONO 0 / STEREO 1, 3 threshold -dB 0-63, 4 start THRES 0 / MIDI 1
+.recset: call nib2
+        mov bl, al
+        call nib4
+        cmp bl, 1
+        jne .rs2
+        cmp ax, 1
+        jge .rs1
+        mov ax, 1
+.rs1:   cmp ax, 99
+        jle .fit
+        mov ax, 99
+        jmp short .fit
+.rs2:   cmp bl, 2
+        jne .rs3
+        and al, 1
+        mov [0x7500], al
+        mov ax, [0x7506]      ; the bytes follow the channels
+        or ax, ax
+        jnz .fit
+        inc ax
+.fit:   push ax
+        xor bp, bp
+        call 0x2345:0x13F0    ; [7508] = bytes for ax seconds (B/W, MONO/STEREO); CF = no room
+        pop ax
+        jnc .fok
+        dec ax
+        jnz .fit
+        ret                   ; not even 1 s fits: leave it as it was
+.fok:   mov word [0x7504], 0
+        mov [0x7506], ax
+        jmp short .rsd
+.rs3:   cmp bl, 3
+        jne .rs4
+        cmp ax, 63
+        jbe .rs3a
+        mov ax, 63
+.rs3a:  mov [0x7503], al
+        jmp short .rsd
+.rs4:   cmp bl, 4
+        jne .rsr
+        and al, 1
+        mov [0x7502], al
+.rsd:   cmp byte [MODE], MODE_REC
+        jne .rsr
+        call redraw           ; on a REC page: show the new value
+.rsr:   ret
+; 09 ff vvvv: set EFFECTS field ff (1 WET, 2 TIME, 3 FEEDBACK, 4 RATE) to vvvv, clamped to the page's own limits
+; (FEEDBACK to the preset's fbmax), applied like a knob turn on the EFFECTS page (0.29, Bridge's FX knobs)
+.fxpar: call nib2
+        mov bl, al
+        call nib4
+        cmp bl, F_WET
+        jb .fpr
+        cmp bl, F_RATE
+        ja .fpr
+        xor bh, bh
+        shl bx, 1
+        mov di, [cs:fparam+bx]
+        mov cx, [cs:fmin+bx]
+        mov dx, [cs:fmax+bx]
+        cmp bl, F_FB * 2
+        jne .fpl
+        push ax
+        push bx
+        call fbmax
+        mov dx, ax
+        pop bx
+        pop ax
+.fpl:   cmp ax, cx
+        jge .fp1
+        mov ax, cx
+.fp1:   cmp ax, dx
+        jle .fp2
+        mov ax, dx
+.fp2:   cmp ax, [cs:di]
+        je .fpr
+        mov [cs:di], ax
+        cmp bl, F_WET * 2
+        jne .fpa
+        call setsend
+        jmp short .fpd
+.fpa:   mov byte [cs:keepph], 1
+        call fx_apply
+        mov byte [cs:keepph], 0
+.fpd:   xor al, al
+        call fx_render
+.fpr:   ret
 .fxsel: call nib2             ; 08 nn: select FX preset nn (same as stepping to it with EFFECTS)
         call fxcnt
         cmp al, ah
@@ -268,6 +383,18 @@ tx_w:   push ax               ; word in ax -> 4 nibbles
 %include "rosetta_prog.asm"
 %include "rosetta_rec.asm"
 
+; ZF = 1: the hi code is in and running (src/rosetta_load.asm state)
+hiok:   push es
+        push bx
+        mov bx, LOAD_SEG
+        mov es, bx
+        cmp byte [es:3], 1
+        pop bx
+        pop es
+        ret
+
+rkeys:  db 0xC2, 0xC0, 0x40, 0x41, 0xAD, 0xAE   ; REC, home, soft left/right, PLAY down/up
+RKEYS   equ $ - rkeys
 sxn:    dw 0
 sxbuf:  times SX_MAX db 0
 
